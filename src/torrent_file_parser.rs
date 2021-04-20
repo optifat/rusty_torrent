@@ -15,12 +15,15 @@ pub enum Content{
     Dict(HashMap<String, Content>),
 }
 
-pub fn parse_torrent_file(filename: String) -> Result<Vec<Content>, io::Error>{
-    let mut torrent_contents = Vec::<Content>::new();
+pub fn parse_torrent_file(filename: String) -> Result<HashMap<String, Content>, io::Error>{
     let binary_contents = read(filename)?;
     let string_contents = String::from_utf8_lossy(&binary_contents);
-    let string_contents_length = string_contents.chars().count();
+    if string_contents.chars().next().unwrap() == 'd' {
+        return Err(io::Error::new(io::ErrorKind::Other, "Is it possible for .torrent file to start not from 'd'?"));
+    }
 
+    let mut current_index: usize = 1;
+    let torrent_contents = parse_dict(&string_contents, &mut current_index);
     Ok(torrent_contents)
 }
 
@@ -47,7 +50,7 @@ fn parse_string(contents: &Cow<str>, current_index: &mut usize) -> String{
     *current_index += 1;
     let mut string = String::new();
     let len_str = len_str.parse::<usize>().unwrap();
-    for i in 0..len_str{
+    for _ in 0..len_str{
         string.push(contents.chars().nth(*current_index).unwrap());
         *current_index += 1;
     }
@@ -142,12 +145,14 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
     dict_content
 }
 
+
+
+// I assume that .torrent file is OK, so I don't check some Bencode restrictions (like "i-0e" or "i-000532e" and so on)
+
 #[cfg(test)]
 
 mod tests{
     #[cfg(test)]
-
-    use super::*;
 
     // our functions are getting lines without starting letters, so the examples are like "42e" instead of "i42e"
     #[test]
@@ -168,30 +173,6 @@ mod tests{
     fn parsing_negative_int(){
         unsafe{
             assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("-75637e").as_mut_vec()), &mut 0), -75637);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn parsing_negative_zero(){
-        unsafe{
-            crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("-0e").as_mut_vec()), &mut 0);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn parsing_starting_zero_in_positive(){
-        unsafe{
-            crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("07562e").as_mut_vec()), &mut 0);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn parsing_starting_zero_in_negative(){
-        unsafe{
-            crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("-54125e").as_mut_vec()), &mut 0);
         }
     }
 
