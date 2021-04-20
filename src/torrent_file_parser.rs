@@ -5,15 +5,14 @@ use std::borrow::Cow;
 
 // https://habr.com/ru/post/119753/
 // https://github.com/jcul/bencode
+// https://en.wikipedia.org/wiki/Bencode
 
-#[allow(unused_mut)]
-#[allow(unused_variables)]
 #[derive(PartialEq, Eq)]
 pub enum Content{
     Str(String),
-    List(Vec::<Content>),
+    List(Vec<Content>),
     Int(i64),
-    Dict(HashMap::<String, Content>),
+    Dict(HashMap<String, Content>),
 }
 
 pub fn parse_torrent_file(filename: String) -> Result<Vec<Content>, io::Error>{
