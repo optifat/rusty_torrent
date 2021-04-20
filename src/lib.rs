@@ -1,1 +1,1 @@
-pub mod torrent_parser;
+pub mod torrent_file_parser;
