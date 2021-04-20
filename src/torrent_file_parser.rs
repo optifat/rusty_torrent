@@ -8,15 +8,15 @@ use std::borrow::Cow;
 
 #[allow(unused_mut)]
 #[allow(unused_variables)]
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq)]
 pub enum Content{
     Str(String),
     List(Vec::<Content>),
     Int(i64),
-    Dict(HashMap::<Content, Content>),
+    Dict(HashMap::<String, Content>),
 }
 
-pub fn parse_torrent_file(filename: String) -> Result<Vec::<Content>, io::Error>{
+pub fn parse_torrent_file(filename: String) -> Result<Vec<Content>, io::Error>{
     let mut torrent_contents = Vec::<Content>::new();
     let binary_contents = read(filename)?;
     let string_contents = String::from_utf8_lossy(&binary_contents);
@@ -51,7 +51,7 @@ fn parse_string(contents: &Cow<str>, current_index: &mut usize) -> String{
     string
 }
 
-fn parse_list(contents: &Cow<str>, current_index: &mut usize) -> Vec::<Content>{
+fn parse_list(contents: &Cow<str>, current_index: &mut usize) -> Vec<Content>{
     let mut list = Vec::<Content>::new();
     let mut symbol = contents.chars().nth(*current_index).unwrap();
     while symbol != 'e' {
@@ -71,7 +71,7 @@ fn parse_list(contents: &Cow<str>, current_index: &mut usize) -> Vec::<Content>{
             list.push(Content::Dict(parse_dict(contents, current_index)));
         }
         else{
-            panic!();
+            panic!("Unknown type {}", symbol);
         }
         symbol = contents.chars().nth(*current_index).unwrap();
     }
@@ -79,9 +79,9 @@ fn parse_list(contents: &Cow<str>, current_index: &mut usize) -> Vec::<Content>{
     list
 }
 
-fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap::<Content, Content>{
-    let mut dict_content = HashMap::<Content, Content>::new();
-    let mut key;
+fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String, Content>{
+    let mut dict_content = HashMap::<String, Content>::new();
+    let mut key = String::from("");
     let mut reading_key = true;
     let mut symbol = contents.chars().nth(*current_index).unwrap();
 
@@ -89,56 +89,48 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap::<Conte
         if symbol == 'i'{
             *current_index += 1;
             if reading_key{
-                key = Content::Int(parse_int(contents, current_index));
-                reading_key = false;
-                if dict_content.get(&key).is_some(){
-                    panic!();
-                }
+                panic!("Dictionary keys must be byte strings");
             }
             else{
-                dict_content.insert(key, Content::Int(parse_int(contents, current_index)));
+                dict_content.insert(key.clone(), Content::Int(parse_int(contents, current_index)));
+                reading_key = true;
             }
         }
         else if symbol.is_digit(10){
             if reading_key{
-                key = Content::Str(parse_string(contents, current_index));
+                key = parse_string(contents, current_index);
                 reading_key = false;
                 if dict_content.get(&key).is_some(){
-                    panic!();
+                    panic!("Dictionary has a duplicate key");
                 }
             }
             else{
-                dict_content.insert(key, Content::Str(parse_string(contents, current_index)));
+                dict_content.insert(key.clone(), Content::Str(parse_string(contents, current_index)));
+                reading_key = true;
             }
         }
         else if symbol == 'l'{
             *current_index += 1;
             if reading_key{
-                key = Content::List(parse_list(contents, current_index));
-                reading_key = false;
-                if dict_content.get(&key).is_some(){
-                    panic!();
-                }
+                panic!();
             }
             else{
-                dict_content.insert(key, Content::List(parse_list(contents, current_index)));
+                dict_content.insert(key.clone(), Content::List(parse_list(contents, current_index)));
+                reading_key = true;
             };
         }
         else if symbol == 'd'{
             *current_index += 1;
             if reading_key{
-                key = Content::Dict(parse_dict(contents, current_index));
-                reading_key = false;
-                if dict_content.get(&key).is_some(){
-                    panic!();
-                }
+                panic!("Dictionary keys must be byte strings");
             }
             else{
-                dict_content.insert(key, Content::Dict(parse_dict(contents, current_index)));
+                dict_content.insert(key.clone(), Content::Dict(parse_dict(contents, current_index)));
+                reading_key = true;
             };
         }
         else{
-            panic!();
+            panic!("Unknown type {}", symbol);
         }
         symbol = contents.chars().nth(*current_index).unwrap();
     }
