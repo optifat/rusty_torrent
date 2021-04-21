@@ -7,7 +7,7 @@ use std::borrow::Cow;
 // https://github.com/jcul/bencode
 // https://en.wikipedia.org/wiki/Bencode
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Content{
     Str(String),
     List(Vec<Content>),
@@ -18,7 +18,8 @@ pub enum Content{
 pub fn parse_torrent_file(filename: String) -> Result<HashMap<String, Content>, io::Error>{
     let binary_contents = read(filename)?;
     let string_contents = String::from_utf8_lossy(&binary_contents);
-    if string_contents.chars().next().unwrap() == 'd' {
+
+    if string_contents.chars().next().unwrap() != 'd' {
         return Err(io::Error::new(io::ErrorKind::Other, "Is it possible for .torrent file to start not from 'd'?"));
     }
 
@@ -82,7 +83,7 @@ fn parse_list(contents: &Cow<str>, current_index: &mut usize) -> Vec<Content>{
         }
         symbol = contents.chars().nth(*current_index).unwrap();
     }
-
+    *current_index += 1;
     list
 }
 
@@ -141,6 +142,7 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
         }
         symbol = contents.chars().nth(*current_index).unwrap();
     }
+    *current_index += 1;
 
     dict_content
 }
@@ -152,41 +154,77 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
 #[cfg(test)]
 
 mod tests{
+    use std::collections::HashMap;
+
     #[cfg(test)]
 
     // our functions are getting lines without starting letters, so the examples are like "42e" instead of "i42e"
     #[test]
     fn parsing_positive_int(){
+        let mut index = 0;
         unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("42e").as_mut_vec()), &mut 0), 42);
+            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("42e").as_mut_vec()), &mut index), 42);
         }
+        assert_eq!(index, 3);
     }
 
     #[test]
     fn parsing_zero_int(){
+        let mut index = 0;
         unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("0e").as_mut_vec()), &mut 0), 0);
+            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("0e").as_mut_vec()), &mut index), 0);
         }
+        assert_eq!(index, 2);
     }
 
     #[test]
     fn parsing_negative_int(){
+        let mut index = 0;
         unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("-75637e").as_mut_vec()), &mut 0), -75637);
+            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("-75637e").as_mut_vec()), &mut index), -75637);
         }
+        assert_eq!(index, 7);
     }
 
     #[test]
     fn parsing_string_1(){
+        let mut index = 0;
         unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_string(&String::from_utf8_lossy(String::from("4:spam").as_mut_vec()), &mut 0), "spam");
+            assert_eq!(crate::torrent_file_parser::parse_string(&String::from_utf8_lossy(String::from("4:spam").as_mut_vec()), &mut index), "spam");
         }
+        assert_eq!(index, 6);
     }
 
     #[test]
     fn parsing_string_2(){
+        let mut index = 0;
         unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_string(&String::from_utf8_lossy(String::from("13:parrot sketch").as_mut_vec()), &mut 0), "parrot sketch");
+            assert_eq!(crate::torrent_file_parser::parse_string(&String::from_utf8_lossy(String::from("13:parrot sketch").as_mut_vec()), &mut index), "parrot sketch");
         }
+        assert_eq!(index, 16);
+    }
+
+    #[test]
+    fn parsing_list(){
+        let result: Vec<super::Content>;
+        let mut index = 0;
+        unsafe{
+            result = crate::torrent_file_parser::parse_list(&String::from_utf8_lossy(String::from("13:parrot sketchi42ee").as_mut_vec()), &mut index);
+        }
+        assert_eq!(result[0], super::Content::Str("parrot sketch".to_string()));
+        assert_eq!(result[1], super::Content::Int(42));
+        assert_eq!(index, 21);
+    }
+
+    #[test]
+    fn parsing_dict(){
+        let result: HashMap<String, super::Content>;
+        let mut index = 0;
+        unsafe{
+            result = crate::torrent_file_parser::parse_dict(&String::from_utf8_lossy(String::from("3:bar4:spam3:fooi42ee").as_mut_vec()), &mut index);
+        }
+        assert_eq!(*result.get("bar").unwrap(), super::Content::Str("spam".to_string()));
+        assert_eq!(*result.get("foo").unwrap(), super::Content::Int(42));
+        assert_eq!(index, 21);
     }
 }
