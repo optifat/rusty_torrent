@@ -5,6 +5,6 @@ fn main() {
     let torrent_data = torrent_file_parser::parse_torrent_file(filename).unwrap();
 
     for (key, val) in torrent_data.iter(){
-        println!("{:?}", key);
+        println!("{:?}, {:?}", key, val);
     }
 }

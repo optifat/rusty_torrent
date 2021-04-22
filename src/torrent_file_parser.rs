@@ -1,7 +1,6 @@
 use std::fs::read;
 use std::io;
 use std::collections::HashMap;
-use std::borrow::Cow;
 
 // https://habr.com/ru/post/119753/
 // https://github.com/jcul/bencode
@@ -13,88 +12,116 @@ pub enum Content{
     List(Vec<Content>),
     Int(i64),
     Dict(HashMap<String, Content>),
+    Bytes(Vec<u8>)
 }
 
 pub fn parse_torrent_file(filename: String) -> Result<HashMap<String, Content>, io::Error>{
     let binary_contents = read(filename)?;
-    let string_contents = String::from_utf8_lossy(&binary_contents);
 
-    if string_contents.chars().next().unwrap() != 'd' {
+    if binary_contents[0] != 'd' as u8 {
         return Err(io::Error::new(io::ErrorKind::Other, "Is it possible for .torrent file to start not from 'd'?"));
     }
 
     let mut current_index: usize = 1;
-    let torrent_contents = parse_dict(&string_contents, &mut current_index);
+    let torrent_contents = parse_dict(&binary_contents, &mut current_index);
     Ok(torrent_contents)
 }
 
-fn parse_int(contents: &Cow<str>, current_index: &mut usize) -> i64{
+fn parse_int(contents: &Vec<u8>, current_index: &mut usize) -> i64{
     let mut str_num = String::new();
-    let mut symbol = contents.chars().nth(*current_index).unwrap();
-    while symbol != 'e' {
-        str_num.push(symbol);
+    let mut symbol = contents[*current_index];
+
+    while symbol != 'e' as u8 {
+        str_num.push(symbol as char);
         *current_index += 1;
-        symbol = contents.chars().nth(*current_index).unwrap();
+        symbol = contents[*current_index];
     }
     *current_index += 1;
     str_num.parse::<i64>().unwrap()
 }
 
-fn parse_string(contents: &Cow<str>, current_index: &mut usize) -> String{
+fn parse_string(contents: &Vec<u8>, current_index: &mut usize) -> String{
     let mut len_str = String::new();
-    let mut symbol = contents.chars().nth(*current_index).unwrap();
-    while symbol != ':' {
-        len_str.push(symbol);
+    let mut symbol = contents[*current_index];
+
+    while symbol != ':' as u8 {
+        len_str.push(symbol as char);
         *current_index += 1;
-        symbol = contents.chars().nth(*current_index).unwrap();
+        symbol = contents[*current_index];
     }
-    *current_index += 1;
-    let mut string = String::new();
     let len_str = len_str.parse::<usize>().unwrap();
+
+    *current_index += 1;
+    let mut byte_string = Vec::new();
+    byte_string.reserve(len_str);
+
     for _ in 0..len_str{
-        string.push(contents.chars().nth(*current_index).unwrap());
+        byte_string.push(contents[*current_index]);
         *current_index += 1;
     }
 
-    string
+    String::from_utf8(byte_string).unwrap()
 }
 
-fn parse_list(contents: &Cow<str>, current_index: &mut usize) -> Vec<Content>{
+fn parse_bytes(contents: &Vec<u8>, current_index: &mut usize) -> Vec<u8>{
+    let mut len_str = String::new();
+    let mut symbol = contents[*current_index];
+
+    while symbol != ':' as u8 {
+        len_str.push(symbol as char);
+        *current_index += 1;
+        symbol = contents[*current_index];
+    }
+    let len_str = len_str.parse::<usize>().unwrap();
+
+    *current_index += 1;
+    let mut bytes = Vec::<u8>::new();
+    bytes.reserve(len_str);
+
+    for _ in 0..len_str{
+        bytes.push(contents[*current_index]);
+        *current_index += 1;
+    }
+
+    bytes
+}
+
+fn parse_list(contents: &Vec<u8>, current_index: &mut usize) -> Vec<Content>{
     let mut list = Vec::<Content>::new();
-    let mut symbol = contents.chars().nth(*current_index).unwrap();
-    while symbol != 'e' {
-        if symbol == 'i'{
+    let mut symbol = contents[*current_index];
+    while symbol != 'e' as u8{
+        if symbol == 'i' as u8{
             *current_index += 1;
             list.push(Content::Int(parse_int(contents, current_index)));
         }
-        else if symbol.is_digit(10){
+        else if symbol >= '0' as u8 && symbol <= '9' as u8{
             list.push(Content::Str(parse_string(contents, current_index)));
         }
-        else if symbol == 'l'{
+        else if symbol == 'l' as u8{
             *current_index += 1;
             list.push(Content::List(parse_list(contents, current_index)));
         }
-        else if symbol == 'd'{
+        else if symbol == 'd' as u8{
             *current_index += 1;
             list.push(Content::Dict(parse_dict(contents, current_index)));
         }
         else{
-            panic!("Unknown type {}", symbol);
+            panic!("Unknown type {}", symbol as char);
         }
-        symbol = contents.chars().nth(*current_index).unwrap();
+        symbol = contents[*current_index];
     }
     *current_index += 1;
     list
 }
 
-fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String, Content>{
+fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, Content>{
     let mut dict_content = HashMap::<String, Content>::new();
     let mut key = String::from("");
     let mut reading_key = true;
-    let mut symbol = contents.chars().nth(*current_index).unwrap();
+    let mut symbol = contents[*current_index];
 
-    while symbol != 'e' {
-        if symbol == 'i'{
+    while symbol != 'e' as u8{
+        if symbol == 'i' as u8{
             *current_index += 1;
             if reading_key{
                 panic!("Dictionary keys must be byte strings");
@@ -104,7 +131,7 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
                 reading_key = true;
             }
         }
-        else if symbol.is_digit(10){
+        else if symbol >= '0' as u8 && symbol <= '9' as u8{
             if reading_key{
                 key = parse_string(contents, current_index);
                 reading_key = false;
@@ -113,11 +140,16 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
                 }
             }
             else{
-                dict_content.insert(key.clone(), Content::Str(parse_string(contents, current_index)));
+                if key != "pieces"{
+                    dict_content.insert(key.clone(), Content::Str(parse_string(contents, current_index)));
+                }
+                else{
+                    dict_content.insert(key.clone(), Content::Bytes(parse_bytes(contents, current_index)));
+                }
                 reading_key = true;
             }
         }
-        else if symbol == 'l'{
+        else if symbol == 'l' as u8{
             *current_index += 1;
             if reading_key{
                 panic!();
@@ -127,7 +159,7 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
                 reading_key = true;
             };
         }
-        else if symbol == 'd'{
+        else if symbol == 'd' as u8{
             *current_index += 1;
             if reading_key{
                 panic!("Dictionary keys must be byte strings");
@@ -138,9 +170,9 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
             };
         }
         else{
-            panic!("Unknown type {}", symbol);
+            panic!("Unknown type {}", symbol as char);
         }
-        symbol = contents.chars().nth(*current_index).unwrap();
+        symbol = contents[*current_index];
     }
     *current_index += 1;
 
@@ -154,6 +186,7 @@ fn parse_dict(contents: &Cow<str>, current_index: &mut usize) -> HashMap<String,
 #[cfg(test)]
 
 mod tests{
+
     use std::collections::HashMap;
 
     #[cfg(test)]
@@ -162,55 +195,44 @@ mod tests{
     #[test]
     fn parsing_positive_int(){
         let mut index = 0;
-        unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("42e").as_mut_vec()), &mut index), 42);
-        }
+        assert_eq!(crate::torrent_file_parser::parse_int(&"42e".to_string().as_bytes().to_vec(), &mut index), 42);
         assert_eq!(index, 3);
     }
 
     #[test]
     fn parsing_zero_int(){
         let mut index = 0;
-        unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("0e").as_mut_vec()), &mut index), 0);
-        }
+        assert_eq!(crate::torrent_file_parser::parse_int(&"0e".to_string().as_bytes().to_vec(), &mut index), 0);
         assert_eq!(index, 2);
     }
 
     #[test]
     fn parsing_negative_int(){
         let mut index = 0;
-        unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_int(&String::from_utf8_lossy(String::from("-75637e").as_mut_vec()), &mut index), -75637);
-        }
+        assert_eq!(crate::torrent_file_parser::parse_int(&"-75637e".to_string().as_bytes().to_vec(), &mut index), -75637);
         assert_eq!(index, 7);
     }
 
     #[test]
     fn parsing_string_1(){
         let mut index = 0;
-        unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_string(&String::from_utf8_lossy(String::from("4:spam").as_mut_vec()), &mut index), "spam");
-        }
+        assert_eq!(crate::torrent_file_parser::parse_string(&"4:spam".to_string().as_bytes().to_vec(), &mut index), "spam");
         assert_eq!(index, 6);
     }
 
     #[test]
     fn parsing_string_2(){
         let mut index = 0;
-        unsafe{
-            assert_eq!(crate::torrent_file_parser::parse_string(&String::from_utf8_lossy(String::from("13:parrot sketch").as_mut_vec()), &mut index), "parrot sketch");
-        }
+        assert_eq!(crate::torrent_file_parser::parse_string(&"13:parrot sketch".to_string().as_bytes().to_vec(), &mut index), "parrot sketch");
         assert_eq!(index, 16);
     }
 
     #[test]
     fn parsing_list(){
-        let result: Vec<super::Content>;
         let mut index = 0;
-        unsafe{
-            result = crate::torrent_file_parser::parse_list(&String::from_utf8_lossy(String::from("13:parrot sketchi42ee").as_mut_vec()), &mut index);
-        }
+        let result: Vec<super::Content> = {
+            crate::torrent_file_parser::parse_list(&"13:parrot sketchi42ee".to_string().as_bytes().to_vec(), &mut index)
+        };
         assert_eq!(result[0], super::Content::Str("parrot sketch".to_string()));
         assert_eq!(result[1], super::Content::Int(42));
         assert_eq!(index, 21);
@@ -218,11 +240,10 @@ mod tests{
 
     #[test]
     fn parsing_dict(){
-        let result: HashMap<String, super::Content>;
         let mut index = 0;
-        unsafe{
-            result = crate::torrent_file_parser::parse_dict(&String::from_utf8_lossy(String::from("3:bar4:spam3:fooi42ee").as_mut_vec()), &mut index);
-        }
+        let result: HashMap<String, super::Content> = {
+            crate::torrent_file_parser::parse_dict(&"3:bar4:spam3:fooi42ee".to_string().as_bytes().to_vec(), &mut index)
+        };
         assert_eq!(*result.get("bar").unwrap(), super::Content::Str("spam".to_string()));
         assert_eq!(*result.get("foo").unwrap(), super::Content::Int(42));
         assert_eq!(index, 21);
