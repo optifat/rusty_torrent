@@ -1,6 +1,7 @@
 use std::env;
 
 use rustorrent::torrent_file_parser;
+use rustorrent::torrent_data_extractor;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -15,7 +16,6 @@ fn main() {
     let filename = (&args[1]).to_string();
     let torrent_data = torrent_file_parser::parse_torrent_file(filename).unwrap();
 
-    for (key, val) in torrent_data.iter(){
-        println!("{:?}, {:?}", key, val);
-    }
+    let torrent_data = torrent_data_extractor::extract_data(torrent_data);
+    println!("{:?}", torrent_data);
 }
