@@ -3,7 +3,6 @@ use std::io;
 use std::collections::HashMap;
 
 // https://habr.com/ru/post/119753/
-// https://github.com/jcul/bencode
 // https://en.wikipedia.org/wiki/Bencode
 
 #[derive(PartialEq, Eq, Debug)]
