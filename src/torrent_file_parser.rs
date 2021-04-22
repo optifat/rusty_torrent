@@ -40,29 +40,6 @@ fn parse_int(contents: &Vec<u8>, current_index: &mut usize) -> i64{
     str_num.parse::<i64>().unwrap()
 }
 
-fn parse_string(contents: &Vec<u8>, current_index: &mut usize) -> String{
-    let mut len_str = String::new();
-    let mut symbol = contents[*current_index];
-
-    while symbol != ':' as u8 {
-        len_str.push(symbol as char);
-        *current_index += 1;
-        symbol = contents[*current_index];
-    }
-    let len_str = len_str.parse::<usize>().unwrap();
-
-    *current_index += 1;
-    let mut byte_string = Vec::new();
-    byte_string.reserve(len_str);
-
-    for _ in 0..len_str{
-        byte_string.push(contents[*current_index]);
-        *current_index += 1;
-    }
-
-    String::from_utf8(byte_string).unwrap()
-}
-
 fn parse_bytes(contents: &Vec<u8>, current_index: &mut usize) -> Vec<u8>{
     let mut len_str = String::new();
     let mut symbol = contents[*current_index];
@@ -84,6 +61,10 @@ fn parse_bytes(contents: &Vec<u8>, current_index: &mut usize) -> Vec<u8>{
     }
 
     bytes
+}
+
+fn parse_string(contents: &Vec<u8>, current_index: &mut usize) -> String{
+    String::from_utf8(parse_bytes(&contents, current_index)).unwrap()
 }
 
 fn parse_list(contents: &Vec<u8>, current_index: &mut usize) -> Vec<Content>{
