@@ -1,18 +1,10 @@
 use std::fs::read;
 use std::io;
 use std::collections::HashMap;
+use crate::bencode_content::Content;
 
 // https://habr.com/ru/post/119753/
 // https://en.wikipedia.org/wiki/Bencode
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum Content{
-    Str(String),
-    List(Vec<Content>),
-    Int(i64),
-    Dict(HashMap<String, Content>),
-    Bytes(Vec<u8>)
-}
 
 pub fn parse_torrent_file(filename: String) -> Result<HashMap<String, Content>, io::Error>{
     let binary_contents = read(filename)?;
@@ -158,8 +150,6 @@ fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, 
 
     dict_content
 }
-
-
 
 // I assume that .torrent file is OK, so I don't check some Bencode restrictions (like "i-0e" or "i-000532e" and so on)
 
