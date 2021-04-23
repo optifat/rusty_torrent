@@ -1,12 +1,16 @@
 use std::fs::read;
 use std::io;
 use std::collections::HashMap;
+use sha1::{Sha1, Digest};
 use crate::bencode_content::Content;
 
 // https://habr.com/ru/post/119753/
 // https://en.wikipedia.org/wiki/Bencode
 
-pub fn parse_torrent_file(filename: String) -> Result<HashMap<String, Content>, io::Error>{
+static mut INFO_START: usize = 0;
+static mut INFO_END: usize = 0;
+
+pub fn parse_torrent_file(filename: String) -> Result<(HashMap<String, Content>, Vec<u8>), io::Error>{
     let binary_contents = read(filename)?;
 
     if binary_contents[0] != 'd' as u8 {
@@ -15,7 +19,16 @@ pub fn parse_torrent_file(filename: String) -> Result<HashMap<String, Content>, 
 
     let mut current_index: usize = 1;
     let torrent_contents = parse_dict(&binary_contents, &mut current_index);
-    Ok(torrent_contents)
+    let info_hash = create_info_hash(&binary_contents);
+    Ok((torrent_contents, info_hash))
+}
+
+fn create_info_hash(contents: &Vec<u8>) -> Vec<u8>{
+    let mut hasher = Sha1::new();
+    unsafe {
+        hasher.update(&contents[INFO_START..INFO_END]);
+    }
+    hasher.finalize().to_vec()
 }
 
 fn parse_int(contents: &Vec<u8>, current_index: &mut usize) -> i64{
@@ -91,8 +104,17 @@ fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, 
     let mut key = String::from("");
     let mut reading_key = true;
     let mut symbol = contents[*current_index];
+    let mut info_key_met = false;
 
     while symbol != 'e' as u8{
+
+        if !info_key_met && key == "info" && !reading_key{
+            info_key_met = true;
+            unsafe{
+                INFO_START = *current_index;
+            }
+        }
+
         if symbol == 'i' as u8{
             *current_index += 1;
             if reading_key{
@@ -100,6 +122,11 @@ fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, 
             }
             else{
                 dict_content.insert(key.clone(), Content::Int(parse_int(contents, current_index)));
+                if info_key_met{
+                    unsafe {
+                        INFO_END = *current_index;
+                    }
+                }
                 reading_key = true;
             }
         }
@@ -118,6 +145,12 @@ fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, 
                 else{
                     dict_content.insert(key.clone(), Content::Bytes(parse_bytes(contents, current_index)));
                 }
+                if info_key_met{
+                    info_key_met = false;
+                    unsafe {
+                        INFO_END = *current_index;
+                    }
+                }
                 reading_key = true;
             }
         }
@@ -128,6 +161,11 @@ fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, 
             }
             else{
                 dict_content.insert(key.clone(), Content::List(parse_list(contents, current_index)));
+                if info_key_met{
+                    unsafe {
+                        INFO_END = *current_index;
+                    }
+                }
                 reading_key = true;
             };
         }
@@ -138,6 +176,11 @@ fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, 
             }
             else{
                 dict_content.insert(key.clone(), Content::Dict(parse_dict(contents, current_index)));
+                if info_key_met{
+                    unsafe {
+                        INFO_END = *current_index;
+                    }
+                }
                 reading_key = true;
             };
         }
@@ -217,5 +260,31 @@ mod tests{
         assert_eq!(*result.get("bar").unwrap(), super::Content::Str("spam".to_string()));
         assert_eq!(*result.get("foo").unwrap(), super::Content::Int(42));
         assert_eq!(index, 21);
+    }
+
+    #[test]
+    fn testing_info_hash(){
+        let mut index = 0;
+        let example = "4:info4:spam3:fooi42ee".to_string().as_bytes().to_vec();
+        let _ = crate::torrent_file_parser::parse_dict(&example, &mut index);
+        unsafe {
+            assert_eq!(crate::torrent_file_parser::INFO_START, 6);
+            assert_eq!(crate::torrent_file_parser::INFO_END, 12);
+        }
+        assert_eq!(crate::torrent_file_parser::create_info_hash(&example),
+                   vec![151, 39, 109, 243, 254, 149, 209, 1, 232, 44, 41, 51, 88, 33, 38, 89, 2, 164, 15, 144]);
+    }
+
+    #[test]
+    fn testing_info_hash_2(){
+        let mut index = 0;
+        let example = "4:infod5:filesld6:lengthi615e4:patheeee".to_string().as_bytes().to_vec();
+        let _ = crate::torrent_file_parser::parse_dict(&example, &mut index);
+        unsafe {
+            assert_eq!(crate::torrent_file_parser::INFO_START, 6);
+            assert_eq!(crate::torrent_file_parser::INFO_END, 38);
+        }
+        assert_eq!(crate::torrent_file_parser::create_info_hash(&example),
+                   vec![4, 126, 211, 231, 220, 45, 82, 116, 37, 135, 96, 198, 181, 86, 85, 175, 170, 126, 67, 178]);
     }
 }
