@@ -3,16 +3,16 @@ use crate::bencode_content::Content;
 
 #[derive(Debug)]
 pub struct TorrentData{
-    pieces: Vec<Vec<u8>>,
-    piece_length: usize,
-    files: Vec<File>,
-    announce: String,
+    pub pieces: Vec<Vec<u8>>,
+    pub piece_length: usize,
+    pub files: Vec<File>,
+    pub announce: String,
 }
 
 #[derive(Debug)]
-struct File{
-    path_to_file: Vec<String>,
-    size: usize
+pub struct File{
+    pub path_to_file: Vec<String>,
+    pub size: usize
 }
 
 pub fn extract_data(torrent_data: HashMap<String, Content>) -> TorrentData {
@@ -54,7 +54,7 @@ pub fn extract_data(torrent_data: HashMap<String, Content>) -> TorrentData {
             path_to_file: vec![info.get("name").unwrap()
                           .get_str().unwrap()
                           .clone().to_string()],
-            size: *info.get("size").unwrap()
+            size: *info.get("length").unwrap()
                        .get_int().unwrap() as usize,
         });
     }
