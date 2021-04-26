@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use crate::bencode_content::Content;
 
 #[derive(Debug)]
-pub struct TorrentFilesAndHashes{
+pub struct TorrentData{
     pieces: Vec<Vec<u8>>,
     piece_length: usize,
     files: Vec<File>,
+    announce: String,
 }
 
 #[derive(Debug)]
@@ -14,7 +15,7 @@ struct File{
     size: usize
 }
 
-pub fn extract_data(torrent_data: HashMap<String, Content>) -> TorrentFilesAndHashes {
+pub fn extract_data(torrent_data: HashMap<String, Content>) -> TorrentData {
     let info = torrent_data.get("info").unwrap()
                            .get_dict().unwrap();
     let files_data = info.get("files");
@@ -70,5 +71,8 @@ pub fn extract_data(torrent_data: HashMap<String, Content>) -> TorrentFilesAndHa
         }
     }
 
-    TorrentFilesAndHashes{pieces, piece_length, files}
+    let announce = torrent_data.get("announce").unwrap()
+                               .get_str().unwrap().to_string();
+
+    TorrentData{pieces, piece_length, files, announce}
 }
