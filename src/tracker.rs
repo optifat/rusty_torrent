@@ -1,6 +1,7 @@
 use std::io::Read;
 use curl::easy::Easy;
 use crate::torrent_data_extractor::TorrentData;
+use crate::torrent_file_parser::parse_byte_data;
 
 struct Peer{
     ip: Vec<u8>,
@@ -9,8 +10,10 @@ struct Peer{
 
 pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>){
     let url = create_tracker_url(torrent_data, peer_id, port, info_hash);
+    println!("{}", url);
     let response = make_request(url);
-    println!("{:?}", response);
+    let response_data = parse_byte_data(&response);
+    println!("{:?}", response_data);
 }
 
 fn make_request(url: String) -> Vec<u8>{

@@ -12,15 +12,18 @@ static mut INFO_END: usize = 0;
 
 pub fn parse_torrent_file(filename: String) -> Result<(HashMap<String, Content>, Vec<u8>), io::Error>{
     let binary_contents = read(filename)?;
+    let torrent_contents = parse_byte_data(&binary_contents).unwrap();
+    let info_hash = create_info_hash(&binary_contents);
+    Ok((torrent_contents, info_hash))
+}
 
-    if binary_contents[0] != 'd' as u8 {
+pub fn parse_byte_data(data: &Vec<u8>) -> Result<(HashMap<String, Content>), io::Error>{
+    if data[0] != 'd' as u8 {
         return Err(io::Error::new(io::ErrorKind::Other, "Is it possible for .torrent file to start not from 'd'?"));
     }
 
     let mut current_index: usize = 1;
-    let torrent_contents = parse_dict(&binary_contents, &mut current_index);
-    let info_hash = create_info_hash(&binary_contents);
-    Ok((torrent_contents, info_hash))
+    Ok(parse_dict(data, &mut current_index))
 }
 
 fn create_info_hash(contents: &Vec<u8>) -> Vec<u8>{
