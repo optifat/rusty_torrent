@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 sha-1 = "0.9.4"
+curl = "0.4.36"
