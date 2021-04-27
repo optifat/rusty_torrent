@@ -1,17 +1,31 @@
-use std::net::TcpStream;
+use std::net::{TcpStream, SocketAddr};
+use std::time::Duration;
 use std::io::prelude::*;
+
+const BUF_SIZE: usize = 128;
 
 pub fn perform_handshake(peer_ip: &String, info_hash: &Vec<u8>, peer_id: &Vec<u8>, pstr_option: Option<String>){
     println!("Performing handshake with {:?}", peer_ip);
     let mut response = Vec::<u8>::new();
-    match TcpStream::connect(peer_ip) {
+    match TcpStream::connect_timeout(&peer_ip.parse::<SocketAddr>().unwrap(), Duration::new(3, 0)) {
         Ok(mut stream) => {
+            println!("Connected");
             stream.write(&create_handshake_msg(info_hash, peer_id, pstr_option)).unwrap();
-            stream.read(&mut response).unwrap();
+            let mut size = BUF_SIZE;
+            let mut buf: [u8; BUF_SIZE];
+
+            while size == BUF_SIZE{
+                buf = [0; BUF_SIZE];
+                size = stream.read(&mut buf).unwrap();
+                for i in 0..size{
+                    response.push(buf[i]);
+                }
+            }
+            println!("{:?}", response.len());
             println!("{:?}", response);
         },
-        Err(e) => {
-            eprintln!("{:?}", e);
+        Err(_) => {
+            eprintln!("Failed to connect");
         }
     }
 }
