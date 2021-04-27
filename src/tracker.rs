@@ -2,13 +2,7 @@ use curl::easy::Easy;
 use crate::torrent_data_extractor::TorrentData;
 use crate::torrent_file_parser::parse_byte_data;
 
-#[derive(Debug)]
-pub struct Peer{
-    pub ip: Vec<u8>,
-    pub port: u16,
-}
-
-pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>) -> (Vec<Peer>, i64){
+pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>) -> (Vec<String>, i64){
     let url = create_tracker_url(torrent_data, peer_id, port, info_hash);
     let response = make_request(url);
     let response_data = parse_byte_data(&response).unwrap();
@@ -20,26 +14,33 @@ pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, i
     if peers.len()%6 != 0{
         panic!("Corrupted peers data");
     }
-    let mut ip = Vec::new();
+    let mut ip = String::new();
     let mut port: u16 = 0;
-    let mut peers_list: Vec<Peer> = Vec::new();
+    let mut peers_list: Vec<String> = Vec::new();
 
     for (index, number) in peers.iter().enumerate(){
         match index%6{
             0 => {
-                ip = Vec::new();
+                ip = String::new();
                 port = 0;
-                ip.push(*number);
+                ip.push_str(&*number.to_string());
+                ip.push('.');
             }
-            4 =>{
+            3 => {
+                ip.push_str(&*number.to_string());
+                ip.push(':');
+            }
+            4 => {
                 port += (*number as u16)*256;
             }
-            5 =>{
+            5 => {
                 port += *number as u16;
-                peers_list.push(Peer{ip: ip.clone(), port});
+                ip.push_str(&port.to_string());
+                peers_list.push(ip.clone());
             }
-            _ =>{
-                ip.push(*number);
+            _ => {
+                ip.push_str(&*number.to_string());
+                ip.push('.');
             }
         }
     }

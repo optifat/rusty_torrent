@@ -2,6 +2,7 @@ use std::env;
 use rustorrent::torrent_file_parser;
 use rustorrent::torrent_data_extractor;
 use rustorrent::tracker;
+use rustorrent::handshake;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -20,5 +21,7 @@ fn main() {
     let peer_id = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]; // random peer id now
 
     let (peers, interval) = tracker::request_peers(&torrent_data, &peer_id, 7878, &info_hash);
-    println!("{:?}", peers);
+    handshake::perform_handshake(&peers[0], &info_hash, &peer_id, None);
+    //println!("{:?}", peers);
+
 }
