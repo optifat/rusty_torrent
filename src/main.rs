@@ -19,5 +19,6 @@ fn main() {
 
     let peer_id = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]; // random peer id now
 
-    tracker::request_peers(&torrent_data, &peer_id, 7878, &info_hash);
+    let (peers, interval) = tracker::request_peers(&torrent_data, &peer_id, 7878, &info_hash);
+    println!("{:?}", peers);
 }

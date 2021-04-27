@@ -1,19 +1,50 @@
-use std::io::Read;
 use curl::easy::Easy;
 use crate::torrent_data_extractor::TorrentData;
 use crate::torrent_file_parser::parse_byte_data;
 
-struct Peer{
-    ip: Vec<u8>,
-    port: u16,
+#[derive(Debug)]
+pub struct Peer{
+    pub ip: Vec<u8>,
+    pub port: u16,
 }
 
-pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>){
+pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>) -> (Vec<Peer>, i64){
     let url = create_tracker_url(torrent_data, peer_id, port, info_hash);
-    println!("{}", url);
     let response = make_request(url);
-    let response_data = parse_byte_data(&response);
-    println!("{:?}", response_data);
+    let response_data = parse_byte_data(&response).unwrap();
+    if response_data.get("failure reason").is_some(){
+        panic!("Announce failure response: {:?}", response_data.get("failure reason").unwrap());
+    }
+
+    let peers = response_data.get("peers").unwrap().get_bytes().unwrap();
+    if peers.len()%6 != 0{
+        panic!("Corrupted peers data");
+    }
+    let mut ip = Vec::new();
+    let mut port: u16 = 0;
+    let mut peers_list: Vec<Peer> = Vec::new();
+
+    for (index, number) in peers.iter().enumerate(){
+        match index%6{
+            0 => {
+                ip = Vec::new();
+                port = 0;
+                ip.push(*number);
+            }
+            4 =>{
+                port += (*number as u16)*256;
+            }
+            5 =>{
+                port += *number as u16;
+                peers_list.push(Peer{ip: ip.clone(), port});
+            }
+            _ =>{
+                ip.push(*number);
+            }
+        }
+    }
+
+    (peers_list, *response_data.get("interval").unwrap().get_int().unwrap())
 }
 
 fn make_request(url: String) -> Vec<u8>{

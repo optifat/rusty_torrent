@@ -17,7 +17,7 @@ pub fn parse_torrent_file(filename: String) -> Result<(HashMap<String, Content>,
     Ok((torrent_contents, info_hash))
 }
 
-pub fn parse_byte_data(data: &Vec<u8>) -> Result<(HashMap<String, Content>), io::Error>{
+pub fn parse_byte_data(data: &Vec<u8>) -> Result<HashMap<String, Content>, io::Error>{
     if data[0] != 'd' as u8 {
         return Err(io::Error::new(io::ErrorKind::Other, "Is it possible for .torrent file to start not from 'd'?"));
     }
@@ -142,7 +142,7 @@ fn parse_dict(contents: &Vec<u8>, current_index: &mut usize) -> HashMap<String, 
                 }
             }
             else{
-                if key != "pieces"{
+                if key != "pieces" && key != "peers" && key != "peers6"{    // 2nd and 3rd for IPv4 and IPv6 respectively
                     dict_content.insert(key.clone(), Content::Str(parse_string(contents, current_index)));
                 }
                 else{
