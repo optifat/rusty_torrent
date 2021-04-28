@@ -1,10 +1,11 @@
 use std::net::{TcpStream, SocketAddr};
 use std::time::Duration;
+use std::io;
 use std::io::prelude::*;
 
 const BUF_SIZE: usize = 128;
 
-pub fn perform_handshake(peer_ip: &String, info_hash: &Vec<u8>, peer_id: &Vec<u8>, pstr_option: Option<String>){
+pub fn perform_handshake(peer_ip: &String, info_hash: &Vec<u8>, peer_id: &Vec<u8>, pstr_option: Option<String>) -> Result<TcpStream, io::Error>{
     println!("Performing handshake with {:?}", peer_ip);
     let mut response = Vec::<u8>::new();
     match TcpStream::connect_timeout(&peer_ip.parse::<SocketAddr>().unwrap(), Duration::new(3, 0)) {
@@ -21,11 +22,18 @@ pub fn perform_handshake(peer_ip: &String, info_hash: &Vec<u8>, peer_id: &Vec<u8
                     response.push(buf[i]);
                 }
             }
-            println!("{:?}", response.len());
+            for i in 0..20{
+                if response[i + (response[0] as usize) + 9] != info_hash[i] {
+                    eprintln!("Hash infos don't match");
+                    return Err(io::Error::new(io::ErrorKind::Other, "Hash infos don't match"));
+                }
+            }
             println!("{:?}", response);
+            Ok(stream)
         },
         Err(_) => {
             eprintln!("Failed to connect");
+            Err(io::Error::new(io::ErrorKind::Other, "Failed to connect"))
         }
     }
 }
