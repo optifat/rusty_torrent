@@ -11,7 +11,7 @@ pub fn perform_handshake(peer_ip: &String, info_hash: &Vec<u8>, peer_id: &Vec<u8
     match TcpStream::connect_timeout(&peer_ip.parse::<SocketAddr>().unwrap(), Duration::new(3, 0)) {
         Ok(mut stream) => {
             println!("Connected");
-            stream.write(&create_handshake_msg(info_hash, peer_id, pstr_option)).unwrap();
+            stream.write(&create_handshake_msg(info_hash, peer_id, pstr_option)).unwrap(); // my panic code: 104, kind: ConnectionReset, message: "Connection reset by peer"
             let mut size = BUF_SIZE;
             let mut buf: [u8; BUF_SIZE];
 
