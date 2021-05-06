@@ -3,32 +3,32 @@ use std::time::Duration;
 use std::io;
 use std::io::prelude::*;
 
-const BUF_SIZE: usize = 128;
-
-pub fn perform_handshake(peer_ip: &String, info_hash: &Vec<u8>, peer_id: &Vec<u8>, pstr_option: Option<String>) -> Result<TcpStream, io::Error>{
+pub fn perform_handshake(peer_ip: String, info_hash: Vec<u8>, peer_id: Vec<u8>, pstr_option: Option<String>) -> Result<TcpStream, io::Error>{
     println!("Performing handshake with {:?}", peer_ip);
-    let mut response = Vec::<u8>::new();
+    //let mut response = Vec::<u8>::new();
     match TcpStream::connect_timeout(&peer_ip.parse::<SocketAddr>().unwrap(), Duration::new(3, 0)) {
         Ok(mut stream) => {
-            println!("Connected");
-            stream.write(&create_handshake_msg(info_hash, peer_id, pstr_option)).unwrap(); // my panic code: 104, kind: ConnectionReset, message: "Connection reset by peer"
-            let mut size = BUF_SIZE;
-            let mut buf: [u8; BUF_SIZE];
+            stream.write(&create_handshake_msg(&info_hash, &peer_id, pstr_option)).unwrap(); // my panic code: 104, kind: ConnectionReset, message: "Connection reset by peer"
+            let mut buf: [u8; 1] = [0; 1];
+            let mut pstr_len: [u8; 1] = [0];
+            let mut pstr_and_reserved = Vec::new();
+            let mut hash: [u8; 20] = [0; 20];
+            let mut id: [u8; 20] = [0; 20];
+            stream.read(&mut pstr_len).unwrap();
 
-            while size == BUF_SIZE{
-                buf = [0; BUF_SIZE];
-                size = stream.read(&mut buf).unwrap();
-                for i in 0..size{
-                    response.push(buf[i]);
-                }
+            for _ in 0..pstr_len[0]+8{
+                stream.read(&mut buf).unwrap();
+                pstr_and_reserved.push(buf[0]);
             }
+            stream.read(&mut hash).unwrap();
+            stream.read(&mut id).unwrap();
             for i in 0..20{
-                if response[i + (response[0] as usize) + 9] != info_hash[i] {
+                if hash[i] != info_hash[i] {
                     eprintln!("Hash infos don't match");
-                    return Err(io::Error::new(io::ErrorKind::Other, "Hash infos don't match"));
+                    return Err(io::Error::new(io::ErrorKind::Other, "Hash infos do not match"));
                 }
             }
-            println!("{:?}", response);
+            println!("Connected to {:?}", peer_ip);
             Ok(stream)
         },
         Err(_) => {

@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-fn create_request_msg(index: u32, begin: u32, length: u32) -> Vec<u8>{
+pub fn create_request_msg(index: u32, begin: u32, length: u32) -> Vec<u8>{
     let mut request = Vec::new();
 
     // prefix 13 in four-byte big-endian format
@@ -24,7 +24,7 @@ fn create_request_msg(index: u32, begin: u32, length: u32) -> Vec<u8>{
     request
 }
 
-fn create_have_msg(index: u32) -> Vec<u8>{
+pub fn create_have_msg(index: u32) -> Vec<u8>{
     let mut have = Vec::new();
 
     // prefix 5 in four-byte big-endian format
@@ -41,7 +41,7 @@ fn create_have_msg(index: u32) -> Vec<u8>{
     have
 }
 
-fn parse_piece_msg(message: Vec<u8>) -> Vec<u8>{
+pub fn parse_piece_msg(message: Vec<u8>) -> Vec<u8>{
     if message.len() < 13{
         println!("Message too short");
     }
@@ -64,7 +64,7 @@ fn parse_piece_msg(message: Vec<u8>) -> Vec<u8>{
     message[13..].to_vec()
 }
 
-fn parce_have_msg(expected_index:u32, message: Vec<u8>){
+pub fn parse_have_msg(expected_index:u32, message: Vec<u8>){
     if message.len() != 9{
         println!("Wrong message length:\"Have\" message has fixed length of 9");
     }
