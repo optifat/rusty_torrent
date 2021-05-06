@@ -5,7 +5,6 @@ use std::io::prelude::*;
 
 pub fn perform_handshake(peer_ip: String, info_hash: Vec<u8>, peer_id: Vec<u8>, pstr_option: Option<String>) -> Result<TcpStream, io::Error>{
     println!("Performing handshake with {:?}", peer_ip);
-    //let mut response = Vec::<u8>::new();
     match TcpStream::connect_timeout(&peer_ip.parse::<SocketAddr>().unwrap(), Duration::new(3, 0)) {
         Ok(mut stream) => {
             stream.write(&create_handshake_msg(&info_hash, &peer_id, pstr_option)).unwrap(); // my panic code: 104, kind: ConnectionReset, message: "Connection reset by peer"
@@ -14,7 +13,13 @@ pub fn perform_handshake(peer_ip: String, info_hash: Vec<u8>, peer_id: Vec<u8>, 
             let mut pstr_and_reserved = Vec::new();
             let mut hash: [u8; 20] = [0; 20];
             let mut id: [u8; 20] = [0; 20];
-            stream.read(&mut pstr_len).unwrap();
+            match stream.read(&mut pstr_len){
+                Ok(_) => {},
+                Err(err) => {
+                    println!("{:?}", err);
+                    return Err(err);
+                }
+            }
 
             for _ in 0..pstr_len[0]+8{
                 stream.read(&mut buf).unwrap();
@@ -24,7 +29,7 @@ pub fn perform_handshake(peer_ip: String, info_hash: Vec<u8>, peer_id: Vec<u8>, 
             stream.read(&mut id).unwrap();
             for i in 0..20{
                 if hash[i] != info_hash[i] {
-                    eprintln!("Hash infos don't match");
+                    println!("Hash infos don't match with {:?}", peer_ip);
                     return Err(io::Error::new(io::ErrorKind::Other, "Hash infos do not match"));
                 }
             }
@@ -32,7 +37,7 @@ pub fn perform_handshake(peer_ip: String, info_hash: Vec<u8>, peer_id: Vec<u8>, 
             Ok(stream)
         },
         Err(_) => {
-            eprintln!("Failed to connect");
+            println!("Failed to connect to {:?}", peer_ip);
             Err(io::Error::new(io::ErrorKind::Other, "Failed to connect"))
         }
     }

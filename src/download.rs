@@ -44,9 +44,7 @@ fn create_download_worker(peer: String, info_hash: Vec<u8>, peer_id:Vec<u8>, exp
         Ok(mut peer_connection) => {
             bitfields::parse_bitfield(&mut peer_connection, expected_length);
         }
-        Err(err) => {
-            eprintln!("{:?}", err);
-        }
+        Err(_) => {}
     }
 
 }
