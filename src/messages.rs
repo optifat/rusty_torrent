@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::io;
 
 pub fn create_request_msg(index: u32, begin: u32, length: u32) -> Vec<u8>{
     let mut request = Vec::new();
@@ -41,27 +42,48 @@ pub fn create_have_msg(index: u32) -> Vec<u8>{
     have
 }
 
-pub fn parse_piece_msg(message: Vec<u8>) -> Vec<u8>{
+pub fn create_unchoke_msg() -> Vec<u8>{
+    let mut msg = Vec::new();
+
+    for byte in (1 as u32).to_be_bytes().iter(){
+        msg.push(*byte);
+    }
+    msg.push(1);
+    msg
+}
+
+pub fn create_interested_msg() -> Vec<u8>{
+    let mut msg = Vec::new();
+
+    for byte in (1 as u32).to_be_bytes().iter(){
+        msg.push(*byte);
+    }
+    msg.push(2);
+    msg
+}
+
+pub fn parse_piece_msg(message: Vec<u8>) -> Result<Vec<u8>, io::Error>{
     if message.len() < 13{
-        println!("Message too short");
+        return Err(io::Error::new(io::ErrorKind::Other, "Message is too short"));
     }
     let id: u8 = message[4];
     if id != 7{
-        println!("Not a pisce message: wrong id");
+        return Err(io::Error::new(io::ErrorKind::Other, format!("Not a piece message: wrong id, expected 7, got {}", id)));
     }
 
     let len = u32::from_be_bytes(message[0..4].try_into().unwrap());
     if len < 9{
-        println!("Message too short");
+        return Err(io::Error::new(io::ErrorKind::Other, "Message announced length is too small"));
     }
 
     let index = u32::from_be_bytes(message[5..9].try_into().unwrap());
     let begin = u32::from_be_bytes(message[9..13].try_into().unwrap());
 
     if message[13..].len() != (len-9) as usize{
-        println!("Block length and announced length are different");
+        return Err(io::Error::new(io::ErrorKind::Other, format!("Block length and announced length are different: expected {}, got {}, real len: {}", len-9, message[13..].len(), message.len())));
     }
-    message[13..].to_vec()
+    //println!("{:?}", message[13..].to_vec());
+    Ok(message[13..].to_vec())
 }
 
 pub fn parse_have_msg(expected_index:u32, message: Vec<u8>){
