@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 use std::io;
+use std::{thread, time};
 
 pub fn create_request_msg(index: u32, begin: u32, length: u32) -> Vec<u8>{
     let mut request = Vec::new();
@@ -60,6 +61,21 @@ pub fn create_interested_msg() -> Vec<u8>{
     }
     msg.push(2);
     msg
+}
+
+pub fn read_message(message: Vec<u8>) -> Option<Vec<u8>>{
+    let id = message[4];
+    match id{
+        0 => {
+            thread::sleep(time::Duration::new(30, 0));
+            return None;
+        }
+        7 => {
+            return Some(parse_piece_msg(message).unwrap());
+        }
+        _ => {}
+    };
+    None
 }
 
 pub fn parse_piece_msg(message: Vec<u8>) -> Result<Vec<u8>, io::Error>{
