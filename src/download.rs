@@ -285,9 +285,6 @@ fn create_download_worker(peer: String,
                 index_opt = queue.pop_front();
                 mem::drop(queue);
                 if fails == 5{
-                    let mut queue = queue_ptr.lock().unwrap();
-                    queue.push_back(index);
-                    mem::drop(queue);
                     return;
                 }
                 continue;
