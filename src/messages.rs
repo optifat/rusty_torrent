@@ -63,19 +63,19 @@ pub fn create_interested_msg() -> Vec<u8>{
     msg
 }
 
-pub fn read_message(message: Vec<u8>) -> Option<Vec<u8>>{
+pub fn read_message(message: Vec<u8>) -> (bool, Option<Vec<u8>>){  // returns true if peer choked us
     let id = message[4];
     match id{
         0 => {
             thread::sleep(time::Duration::new(30, 0));
-            return None;
+            return (true, None);
         }
         7 => {
-            return Some(parse_piece_msg(message).unwrap());
+            return (false, Some(parse_piece_msg(message).unwrap()));
         }
         _ => {}
     };
-    None
+    (false, None)
 }
 
 pub fn parse_piece_msg(message: Vec<u8>) -> Result<Vec<u8>, io::Error>{
