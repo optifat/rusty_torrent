@@ -185,6 +185,7 @@ fn create_download_worker(peer: String,
                 let mut current_message: Vec<u8> = Vec::with_capacity(BLOCK_SIZE+18);
 
                 loop{
+                    //println!("Small Loop");
                     let bytes_got_this_iter;
 
                     match connection.read(&mut piece_msg){
@@ -200,12 +201,27 @@ fn create_download_worker(peer: String,
                     }
 
                     bytes_got += bytes_got_this_iter;
+
                     for i in 0..bytes_got_this_iter{
                         current_message.push(piece_msg[i])
                     }
 
                     if bytes_got == 5 || bytes_got == BLOCK_SIZE+13{
-                        let (choked, result) = messages::read_message(current_message[0..bytes_got].to_vec());
+                        let choked;
+                        let result;
+
+                        match messages::read_message(current_message[0..bytes_got].to_vec()){
+                            Ok((choked_result, bytes)) => {
+                                choked = choked_result;
+                                result = bytes;
+                            }
+                            Err(_) => {
+                                let mut queue = queue_ptr.lock().unwrap();
+                                queue.push_back(index);
+                                mem::drop(queue);
+                                return;
+                            }
+                        }
 
                         if choked{
                             times_choked += 1;
@@ -228,7 +244,19 @@ fn create_download_worker(peer: String,
                         break;
                     }
                     else if bytes_got == BLOCK_SIZE+18{
-                        let (choked, _) = messages::read_message(current_message[0..5].to_vec());
+                        let choked;
+
+                        match messages::read_message(current_message[0..5].to_vec()){
+                            Ok((choked_result, _)) => {
+                                choked = choked_result;
+                            }
+                            Err(_) => {
+                                let mut queue = queue_ptr.lock().unwrap();
+                                queue.push_back(index);
+                                mem::drop(queue);
+                                return;
+                            }
+                        }
 
                         if choked{
                             times_choked += 1;
@@ -240,7 +268,21 @@ fn create_download_worker(peer: String,
                             }
                         }
 
-                        let (choked, result) = messages::read_message(current_message[5..].to_vec());
+                        let choked;
+                        let result;
+
+                        match messages::read_message(current_message[5..].to_vec()){
+                            Ok((choked_result, bytes)) => {
+                                choked = choked_result;
+                                result = bytes;
+                            }
+                            Err(_) => {
+                                let mut queue = queue_ptr.lock().unwrap();
+                                queue.push_back(index);
+                                mem::drop(queue);
+                                return;
+                            }
+                        }
 
                         if choked{
                             times_choked += 1;
@@ -282,12 +324,10 @@ fn create_download_worker(peer: String,
                 fails += 1;
                 let mut queue = queue_ptr.lock().unwrap();
                 queue.push_back(index);
-                index_opt = queue.pop_front();
                 mem::drop(queue);
                 if fails == 5{
                     return;
                 }
-                continue;
             }
             else{
                 let mut download_status = download_status_ptr.lock().unwrap();
@@ -302,7 +342,6 @@ fn create_download_worker(peer: String,
             index_opt = queue.pop_front();
             mem::drop(queue);
         }
-
     }
 }
 
