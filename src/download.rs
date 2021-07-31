@@ -104,15 +104,13 @@ fn create_download_worker(peer: String,
                           torrent_data_ptr: Arc<torrent_data_extractor::TorrentData>,
                           download_status_ptr: Arc<Mutex<download_status::DownloadStatus>>,
                          )
-                         {
+{
     let mut connection;
-    match handshake::perform_handshake(peer, info_hash, peer_id, None){
-        Ok(peer_connection) => {
-            connection = peer_connection;
-        }
-        Err(_) => {
-            return;
-        }
+    if let Ok(peer_connection) = handshake::perform_handshake(peer, info_hash, peer_id, None){
+        connection = peer_connection;
+    }
+    else {
+        return;
     }
 
     connection.set_read_timeout(Some(time::Duration::new(20, 0))).expect("set_read_timeout call failed");
@@ -129,22 +127,18 @@ fn create_download_worker(peer: String,
         }
     }
 
-    match connection.write(&messages::create_unchoke_msg()){
-        Ok(_) => {}
-        Err(_) => {
-            return;
-        }
+    if let Err(_) = connection.write(&messages::create_unchoke_msg()){
+        return;
     }
-    match connection.write(&messages::create_interested_msg()){
-        Ok(_) => {}
-        Err(_) => {
-            return;
-        }
+
+    if let Err(_) = connection.write(&messages::create_interested_msg()){
+        return;
     }
 
     let mut queue = queue_ptr.lock().unwrap();
     let mut index_opt = queue.pop_front();
     mem::drop(queue);
+
     let mut index;
     let mut fails = 0;
     let mut buffer_overlow = false;
@@ -153,7 +147,7 @@ fn create_download_worker(peer: String,
     while index_opt.is_some(){
         index = index_opt.unwrap();
 
-        if bitfield[index/8] & (1 << index%8) == 0{
+        if bitfield[index/8] & (1 << 7-index%8) == 0{
             // the case when peer doesn't have this index piece
             let mut queue = queue_ptr.lock().unwrap();
             queue.push_back(index);
@@ -161,6 +155,9 @@ fn create_download_worker(peer: String,
             mem::drop(queue);
             fails += 1;
             if fails == 5{
+                let mut queue = queue_ptr.lock().unwrap();
+                queue.push_back(index);
+                mem::drop(queue);
                 return;
             }
         }
@@ -169,36 +166,42 @@ fn create_download_worker(peer: String,
             let mut piece = Vec::with_capacity(piece_size);
             let number_of_blocks: u32 = (piece_size/BLOCK_SIZE) as u32 + (piece_size%BLOCK_SIZE != 0) as u32;
             let mut piece_msg: [u8; BLOCK_SIZE+18] = [0; BLOCK_SIZE+18];
+
             for i in 0..number_of_blocks{
-                match connection.write(&messages::create_request_msg(index as u32, i*(BLOCK_SIZE as u32), BLOCK_SIZE as u32)){
-                    Ok(_) => {}
-                    Err(_) => {
-                        let mut queue = queue_ptr.lock().unwrap();
-                        queue.push_back(index);
-                        mem::drop(queue);
-                        return;
-                    }
+                if let Err(_) = connection.write(&messages::create_request_msg(index as u32, i*(BLOCK_SIZE as u32), BLOCK_SIZE as u32)){
+                    let mut queue = queue_ptr.lock().unwrap();
+                    queue.push_back(index);
+                    mem::drop(queue);
+                    return;
                 }
 
                 let mut block: Vec<u8> = Vec::with_capacity(BLOCK_SIZE);
                 let mut bytes_got = 0;
                 let mut current_message: Vec<u8> = Vec::with_capacity(BLOCK_SIZE+18);
 
+                let mut counter: u8 = 0;
+
                 loop{
-                    //println!("Small Loop");
+                    counter += 1;
+                    if counter == 21{ // too slow download
+                        let mut queue = queue_ptr.lock().unwrap();
+                        queue.push_back(index);
+                        mem::drop(queue);
+                        return;
+                    }
+
                     let bytes_got_this_iter;
 
-                    match connection.read(&mut piece_msg){
-                        Ok(number_of_bytes) => {
-                            bytes_got_this_iter = number_of_bytes;
-                        }
-                        Err(_) => {
-                            let mut queue = queue_ptr.lock().unwrap();
-                            queue.push_back(index);
-                            mem::drop(queue);
-                            return;
-                        }
+                    if let Ok(number_of_bytes) = connection.read(&mut piece_msg){
+                        bytes_got_this_iter = number_of_bytes;
                     }
+                    else{
+                        let mut queue = queue_ptr.lock().unwrap();
+                        queue.push_back(index);
+                        mem::drop(queue);
+                        return;
+                    }
+
 
                     bytes_got += bytes_got_this_iter;
 
@@ -210,17 +213,15 @@ fn create_download_worker(peer: String,
                         let choked;
                         let result;
 
-                        match messages::read_message(current_message[0..bytes_got].to_vec()){
-                            Ok((choked_result, bytes)) => {
-                                choked = choked_result;
-                                result = bytes;
-                            }
-                            Err(_) => {
-                                let mut queue = queue_ptr.lock().unwrap();
-                                queue.push_back(index);
-                                mem::drop(queue);
-                                return;
-                            }
+                        if let Ok((choked_result, bytes)) = messages::read_message(current_message[0..bytes_got].to_vec()){
+                            choked = choked_result;
+                            result = bytes;
+                        }
+                        else{
+                            let mut queue = queue_ptr.lock().unwrap();
+                            queue.push_back(index);
+                            mem::drop(queue);
+                            return;
                         }
 
                         if choked{
@@ -233,29 +234,24 @@ fn create_download_worker(peer: String,
                             }
                         }
 
-                        match result{
-                            Some(bytes) => {
-                                for byte in bytes{
-                                    block.push(byte);
-                                }
+                        if let Some(bytes) = result{
+                            for byte in bytes{
+                                block.push(byte);
                             }
-                            None => {}
                         }
                         break;
                     }
                     else if bytes_got == BLOCK_SIZE+18{
                         let choked;
 
-                        match messages::read_message(current_message[0..5].to_vec()){
-                            Ok((choked_result, _)) => {
-                                choked = choked_result;
-                            }
-                            Err(_) => {
-                                let mut queue = queue_ptr.lock().unwrap();
-                                queue.push_back(index);
-                                mem::drop(queue);
-                                return;
-                            }
+                        if let Ok((choked_result, _)) = messages::read_message(current_message[0..5].to_vec()){
+                            choked = choked_result;
+                        }
+                        else {
+                            let mut queue = queue_ptr.lock().unwrap();
+                            queue.push_back(index);
+                            mem::drop(queue);
+                            return;
                         }
 
                         if choked{
@@ -271,17 +267,15 @@ fn create_download_worker(peer: String,
                         let choked;
                         let result;
 
-                        match messages::read_message(current_message[5..].to_vec()){
-                            Ok((choked_result, bytes)) => {
-                                choked = choked_result;
-                                result = bytes;
-                            }
-                            Err(_) => {
-                                let mut queue = queue_ptr.lock().unwrap();
-                                queue.push_back(index);
-                                mem::drop(queue);
-                                return;
-                            }
+                        if let Ok((choked_result, bytes)) = messages::read_message(current_message[5..].to_vec()){
+                            choked = choked_result;
+                            result = bytes;
+                        }
+                        else {
+                            let mut queue = queue_ptr.lock().unwrap();
+                            queue.push_back(index);
+                            mem::drop(queue);
+                            return;
                         }
 
                         if choked{
@@ -294,13 +288,10 @@ fn create_download_worker(peer: String,
                             }
                         }
 
-                        match result{
-                            Some(bytes) => {
-                                for byte in bytes{
-                                    block.push(byte);
-                                }
+                        if let Some(bytes) = result{
+                            for byte in bytes{
+                                block.push(byte);
                             }
-                            None => {}
                         }
                         break;
                     }

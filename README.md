@@ -16,3 +16,6 @@ Right now there are some problems and missing features (in order of need to fix 
 3. Proper error handling.
 4. UDP connections support.
 5. Performance issues (threads are obviously not the best approach here, something like epoll would be better). <br/>
+
+<br/> Also it can stuck when a couple of pieces left. Latest test have shown
+this is probably just choked peers or something like that, but I'm not 100% sure about it. 
