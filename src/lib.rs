@@ -7,4 +7,4 @@ pub mod messages;
 pub mod bitfields;
 pub mod download;
 pub mod download_status;
-// pub mod sha1;  // attempt to write sha1 impl. Not working right now
+pub mod filewriter;

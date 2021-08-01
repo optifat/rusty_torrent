@@ -4,6 +4,7 @@ use std::io::{Write, Read};
 use std::mem;
 use std::thread;
 use std::time;
+
 use rand::Rng;
 use rand::prelude::*;
 use sha1::{Sha1, Digest};
@@ -15,6 +16,7 @@ use crate::tracker;
 use crate::handshake;
 use crate::bitfields;
 use crate::download_status;
+use crate::filewriter;
 
 const BLOCK_SIZE: usize = 16384;
 
@@ -33,6 +35,9 @@ pub fn download(filename: String){
                               total_pieces: pieces_len as u32,
                               pieces_downloaded: 0,
                           };
+
+    let saved_pieces_dir_name = ".test".to_string();
+    filewriter::create_directory(&saved_pieces_dir_name);
 
     let mut pieces_queue = VecDeque::new();
     for i in 0..pieces_len{
@@ -59,8 +64,15 @@ pub fn download(filename: String){
             let queue_ptr_clone = Arc::clone(&queue_ptr);
             let torrent_data_ptr_clone = Arc::clone(&torrent_data_ptr);
             let download_status_ptr_clone = Arc::clone(&download_status_ptr);
+            let saved_pieces_dir_name_clone = saved_pieces_dir_name.clone();
 
             if queue_len == 0{
+                filewriter::compose_files(&*torrent_data_ptr, saved_pieces_dir_name.to_string().clone()).unwrap();
+                //filewriter::remove_directory(&saved_pieces_dir_name.to_string());
+                println!("Success!");
+                for byte in info_hash{
+                    print!("{} ", byte);
+                }
                 return;
             }
             else if queue_len < 10{
@@ -71,7 +83,8 @@ pub fn download(filename: String){
                                        bitfield_expected_length,
                                        queue_ptr_clone,
                                        torrent_data_ptr_clone,
-                                       download_status_ptr_clone
+                                       download_status_ptr_clone,
+                                       saved_pieces_dir_name_clone
                                     );
             }
             else{
@@ -82,7 +95,8 @@ pub fn download(filename: String){
                                                                           bitfield_expected_length,
                                                                           queue_ptr_clone,
                                                                           torrent_data_ptr_clone,
-                                                                          download_status_ptr_clone
+                                                                          download_status_ptr_clone,
+                                                                          saved_pieces_dir_name_clone
                                                                       )));
             }
         }
@@ -103,6 +117,7 @@ fn create_download_worker(peer: String,
                           queue_ptr: Arc<Mutex<VecDeque<usize>>>,
                           torrent_data_ptr: Arc<torrent_data_extractor::TorrentData>,
                           download_status_ptr: Arc<Mutex<download_status::DownloadStatus>>,
+                          saved_pieces_dir_name: String
                          )
 {
     let mut connection;
@@ -321,6 +336,7 @@ fn create_download_worker(peer: String,
                 }
             }
             else{
+                filewriter::save_piece(saved_pieces_dir_name.clone(), piece.clone(), index).unwrap();
                 let mut download_status = download_status_ptr.lock().unwrap();
                 download_status.pieces_downloaded += 1;
                 let progress = 100*download_status.pieces_downloaded/download_status.total_pieces;
