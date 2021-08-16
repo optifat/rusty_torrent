@@ -8,52 +8,6 @@ use crate::torrent_data_extractor::TorrentData;
 use crate::torrent_file_parser::parse_byte_data;
 
 pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>) -> (Vec<String>, i64){
-    //let url = create_tracker_url();
-    let response = make_request(torrent_data, peer_id, port, info_hash);
-    let response_data = parse_byte_data(&response).unwrap();
-    if response_data.get("failure reason").is_some(){
-        panic!("Announce failure response: {:?}", response_data.get("failure reason").unwrap());
-    }
-
-    let peers = response_data.get("peers").unwrap().get_bytes().unwrap();
-    if peers.len()%6 != 0{
-        panic!("Corrupted peers data");
-    }
-    let mut ip = String::new();
-    let mut port: u16 = 0;
-    let mut peers_list: Vec<String> = Vec::new();
-
-    for (index, number) in peers.iter().enumerate(){
-        match index%6{
-            0 => {
-                ip = String::new();
-                port = 0;
-                ip.push_str(&*number.to_string());
-                ip.push('.');
-            }
-            3 => {
-                ip.push_str(&*number.to_string());
-                ip.push(':');
-            }
-            4 => {
-                port += (*number as u16)*256;
-            }
-            5 => {
-                port += *number as u16;
-                ip.push_str(&port.to_string());
-                peers_list.push(ip.clone());
-            }
-            _ => {
-                ip.push_str(&*number.to_string());
-                ip.push('.');
-            }
-        }
-    }
-
-    (peers_list, *response_data.get("interval").unwrap().get_int().unwrap())
-}
-
-fn make_request(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>) -> Vec<u8>{
     let mut announce_list = Vec::new();
     match &torrent_data.announce_list{
         Some(content) => {
@@ -64,6 +18,8 @@ fn make_request(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_h
         }
     }
     let mut data = Vec::new();
+    let mut peers_list: Vec<String> = Vec::new();
+    let mut interval = 0;
 
     for tracker in announce_list{
         println!("{}", tracker);
@@ -75,18 +31,20 @@ fn make_request(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_h
             let socket = UdpSocket::bind("0.0.0.0:7878").expect("couldn't bind to address");
             socket.set_read_timeout(Some(time::Duration::new(20, 0))).expect("set_read_timeout call failed");
             socket.set_write_timeout(Some(time::Duration::new(20, 0))).expect("set_write_timeout call failed");
-            socket.connect(link).expect("connect function failed");
+            if let Err(_) = socket.connect(link){
+                continue
+            }
 
             let (handshake, transaction_id) = create_udp_handshake();
             socket.send(&handshake).expect("couldn't send message");
-
             let bytes_recieved;
             let mut connect_response: [u8; 16] = [0; 16];
             match socket.recv(&mut connect_response){
                 Ok(number_of_bytes) => {
                     bytes_recieved = number_of_bytes;
                 }
-                Err(_) => {
+                Err(err) => {
+                    println!("{}", err);
                     continue;
                 }
             }
@@ -102,10 +60,14 @@ fn make_request(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_h
             }
 
             let (announce_msg, transaction_id) = create_udp_announce(connection_id, torrent_data, peer_id, port, info_hash);
-            socket.send(&announce_msg).expect("couldn't send message");
+
+            if let Err(_) = socket.send(&announce_msg){
+                continue;
+            }
 
             let bytes_recieved;
             let mut announce_response: [u8; 1024] = [0; 1024];
+            println!("{:?}", announce_response);
             match socket.recv(&mut announce_response){
                 Ok(number_of_bytes) => {
                     bytes_recieved = number_of_bytes;
@@ -114,10 +76,15 @@ fn make_request(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_h
                     continue;
                 }
             }
-            println!("{}", bytes_recieved);
-            println!("{:?}", announce_response);
-            data.push(0);
-            break;
+
+            match parse_udp_announce_response(announce_response[0..bytes_recieved].to_vec(), transaction_id){
+                Ok((peers, interval)) => {
+                    return (peers, interval);
+                }
+                Err(_) => {
+                    continue;
+                }
+            }
         }
         else{
             let url = create_tcp_tracker_url(tracker, torrent_data, peer_id, port, info_hash);
@@ -130,11 +97,52 @@ fn make_request(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_h
                     data.extend_from_slice(new_data);
                     Ok(new_data.len())
                 }).unwrap();
-                transfer.perform().unwrap();
+                if let Err(_) = transfer.perform(){
+                    continue;
+                }
             }
+            let response_data = parse_byte_data(&data).unwrap();
+            if response_data.get("failure reason").is_some(){
+                panic!("Announce failure response: {:?}", response_data.get("failure reason").unwrap());
+            }
+
+            let peers = response_data.get("peers").unwrap().get_bytes().unwrap();
+            if peers.len()%6 != 0{
+                panic!("Corrupted peers data");
+            }
+            let mut ip = String::new();
+            let mut port: u16 = 0;
+
+            for (index, number) in peers.iter().enumerate(){
+                match index%6{
+                    0 => {
+                        ip = String::new();
+                        port = 0;
+                        ip.push_str(&*number.to_string());
+                        ip.push('.');
+                    }
+                    3 => {
+                        ip.push_str(&*number.to_string());
+                        ip.push(':');
+                    }
+                    4 => {
+                        port += (*number as u16)*256;
+                    }
+                    5 => {
+                        port += *number as u16;
+                        ip.push_str(&port.to_string());
+                        peers_list.push(ip.clone());
+                    }
+                    _ => {
+                        ip.push_str(&*number.to_string());
+                        ip.push('.');
+                    }
+                }
+            }
+            interval = *response_data.get("interval").unwrap().get_int().unwrap()
         }
     }
-    data
+    (peers_list, interval)
 }
 
 fn create_udp_handshake() -> (Vec<u8>, u32){
@@ -238,6 +246,50 @@ fn create_udp_announce(connection_id: u64, torrent_data: &TorrentData, peer_id: 
     }
 
     (announce_bytes, transaction_id)
+}
+
+fn parse_udp_announce_response(response: Vec<u8>, transaction_id: u32)-> Result<(Vec<String>, i64), io::Error>{
+    let mut peers_list: Vec<String> = Vec::new();
+    if u32::from_be_bytes(response[0..4].try_into().unwrap()) != 1{
+        return Err(io::Error::new(io::ErrorKind::Other, "Wrong action id"));
+    }
+    if u32::from_be_bytes(response[4..8].try_into().unwrap()) != transaction_id{
+        return Err(io::Error::new(io::ErrorKind::Other, "Wrong transaction id"));
+    }
+    let interval = u32::from_be_bytes(response[8..12].try_into().unwrap());
+    let number_of_leechers = u32::from_be_bytes(response[12..16].try_into().unwrap());
+    let number_of_seeders = u32::from_be_bytes(response[16..20].try_into().unwrap());
+
+    let mut ip = String::new();
+    let mut port: u16 = 0;
+
+    for (index, number) in response[20..].iter().enumerate(){
+        match index%6{
+            0 => {
+                ip = String::new();
+                port = 0;
+                ip.push_str(&*number.to_string());
+                ip.push('.');
+            }
+            3 => {
+                ip.push_str(&*number.to_string());
+                ip.push(':');
+            }
+            4 => {
+                port += (*number as u16)*256;
+            }
+            5 => {
+                port += *number as u16;
+                ip.push_str(&port.to_string());
+                peers_list.push(ip.clone());
+            }
+            _ => {
+                ip.push_str(&*number.to_string());
+                ip.push('.');
+            }
+        }
+    }
+    Ok((peers_list, interval as i64))
 }
 
 fn create_tcp_tracker_url(tracker: String, torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>) -> String{
