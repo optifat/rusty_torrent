@@ -7,6 +7,7 @@ pub struct TorrentData{
     pub piece_length: usize,
     pub files: Vec<File>,
     pub announce: String,
+    pub announce_list: Option<Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -74,5 +75,19 @@ pub fn extract_data(torrent_data: HashMap<String, Content>) -> TorrentData {
     let announce = torrent_data.get("announce").unwrap()
                                .get_str().unwrap().to_string();
 
-    TorrentData{pieces, piece_length, files, announce}
+    let mut announce_list_vec = Vec::new();
+    let mut announce_list;
+    match torrent_data.get("announce-list"){
+        Some(content) => {
+            for elem in content.get_list().unwrap(){
+                announce_list_vec.push((*elem.get_list().unwrap()[0].get_str().unwrap()).clone());
+            }
+            announce_list = Some(announce_list_vec);
+        }
+        None => {
+            announce_list = None;
+        }
+    }
+
+    TorrentData{pieces, piece_length, files, announce, announce_list}
 }
