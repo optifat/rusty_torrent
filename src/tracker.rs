@@ -22,7 +22,7 @@ pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, i
     let mut interval = 0;
 
     for tracker in announce_list{
-        println!("{}", tracker);
+        //println!("{}", tracker);
         let url = Url::parse(&tracker).unwrap();
         let is_udp = url.scheme() == "udp";
         if is_udp{
@@ -67,7 +67,6 @@ pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, i
 
             let bytes_recieved;
             let mut announce_response: [u8; 1024] = [0; 1024];
-            println!("{:?}", announce_response);
             match socket.recv(&mut announce_response){
                 Ok(number_of_bytes) => {
                     bytes_recieved = number_of_bytes;
@@ -91,6 +90,7 @@ pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, i
 
             let mut tracker = Easy::new();
             tracker.url(&url).unwrap();
+            tracker.timeout(std::time::Duration::from_millis(20000));
             {
                 let mut transfer = tracker.transfer();
                 transfer.write_function(|new_data| {

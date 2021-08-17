@@ -53,6 +53,11 @@ pub fn download(filename: String){
         let mut workers = Vec::new();
         let (peers, interval) = tracker::request_peers(&*torrent_data_ptr, &peer_id, 7878, &info_hash);
 
+
+        let download_status = download_status_ptr.lock().unwrap();
+        let mut current_progress = download_status.pieces_downloaded;
+        mem::drop(download_status);
+
         for peer in peers.iter(){
             let queue = queue_ptr.lock().unwrap();
             let queue_len = queue.len();
@@ -106,6 +111,16 @@ pub fn download(filename: String){
                 worker.join().unwrap();
             }
         }
+
+        let download_status = download_status_ptr.lock().unwrap();
+
+        if download_status.pieces_downloaded  == current_progress{
+            println!("Seems like there is no available leechers/seeders. Aborting.");
+            return;
+        }
+
+        let mut current_progress = download_status.pieces_downloaded;
+        mem::drop(download_status);
     }
 }
 
