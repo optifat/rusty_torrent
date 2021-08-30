@@ -4,8 +4,8 @@ use std::net::{UdpSocket, ToSocketAddrs, SocketAddr};
 use std::time;
 use std::io;
 use std::convert::TryInto;
-use crate::torrent_data_extractor::TorrentData;
-use crate::torrent_file_parser::parse_byte_data;
+use crate::torrent_file_handler::torrent_data_extractor::TorrentData;
+use crate::torrent_file_handler::torrent_file_parser::parse_byte_data;
 
 pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, info_hash: &Vec<u8>) -> (Vec<String>, i64){
     let mut announce_list = Vec::new();
@@ -22,7 +22,7 @@ pub fn request_peers(torrent_data: &TorrentData, peer_id: &Vec<u8>, port: u16, i
     let mut interval = 0;
 
     for tracker in announce_list{
-        //println!("{}", tracker);
+        println!("{}", tracker);
         let url = Url::parse(&tracker).unwrap();
         let is_udp = url.scheme() == "udp";
         if is_udp{

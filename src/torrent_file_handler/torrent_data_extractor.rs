@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::bencode_content::Content;
+use super::bencode_content::Content;
 
 #[derive(Debug)]
 pub struct TorrentData{

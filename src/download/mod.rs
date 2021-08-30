@@ -1,3 +1,5 @@
+mod download_status;
+
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::io::{Write, Read};
@@ -9,13 +11,12 @@ use rand::Rng;
 use rand::prelude::*;
 use sha1::{Sha1, Digest};
 
-use crate::torrent_file_parser;
-use crate::torrent_data_extractor;
-use crate::messages;
+use crate::torrent_file_handler::torrent_file_parser;
+use crate::torrent_file_handler::torrent_data_extractor;
 use crate::tracker;
-use crate::handshake;
-use crate::bitfields;
-use crate::download_status;
+use crate::p2p::messages;
+use crate::p2p::handshake;
+use crate::p2p::bitfields;
 use crate::filewriter;
 
 const BLOCK_SIZE: usize = 16384;

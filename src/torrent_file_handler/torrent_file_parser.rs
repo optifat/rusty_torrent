@@ -2,7 +2,7 @@ use std::fs::read;
 use std::io;
 use std::collections::HashMap;
 use sha1::{Sha1, Digest};
-use crate::bencode_content::Content;
+use super::bencode_content::Content;
 
 // https://habr.com/ru/post/119753/
 // https://en.wikipedia.org/wiki/Bencode

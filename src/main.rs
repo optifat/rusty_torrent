@@ -1,5 +1,10 @@
+pub mod torrent_file_handler;
+pub mod tracker;
+pub mod p2p;
+pub mod download;
+pub mod filewriter;
+
 use std::env;
-use rustorrent::download;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -12,6 +17,6 @@ fn main() {
         return;
     }
     let filename = (&args[1]).to_string();
-    
+
     download::download(filename);
 }

@@ -3,7 +3,7 @@ use std::fs;
 use std::io::prelude::*;
 use std::os::unix::prelude::FileExt;
 
-use crate::torrent_data_extractor;
+use crate::torrent_file_handler::torrent_data_extractor;
 
 pub fn create_directory(path: &String) -> io::Result<()>{
     fs::create_dir_all(path)?;
