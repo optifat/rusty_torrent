@@ -1,8 +1,8 @@
-pub mod torrent_file_handler;
-pub mod tracker;
-pub mod p2p;
-pub mod download;
-pub mod filewriter;
+mod torrent_file_handler;
+mod tracker;
+mod p2p;
+mod download;
+mod filewriter;
 
 use std::env;
 
