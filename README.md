@@ -1,4 +1,4 @@
-# rustorrent
+# rusty_torrent
 
 ## About
 

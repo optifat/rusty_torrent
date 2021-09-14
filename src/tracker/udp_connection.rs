@@ -1,4 +1,5 @@
 use url::Url;
+use portpicker::pick_unused_port;
 use std::net::UdpSocket;
 use std::convert::TryInto;
 use std::io;
@@ -13,8 +14,11 @@ pub fn make_udp_request(url: Url, torrent_data: &TorrentData, peer_id: &Vec<u8>,
     let mut peers_list: Vec<String> = Vec::new();
     let mut interval = 0;
 
+    let binding_port = pick_unused_port().unwrap();
+    let binding_ip = format!("0.0.0.0:{}", port);
+
     let link = format!("{}:{}", url.host().unwrap(), url.port().unwrap());
-    let socket = UdpSocket::bind("0.0.0.0:7878").expect("couldn't bind to address");
+    let socket = UdpSocket::bind(binding_ip).expect("couldn't bind to address");
     socket.set_read_timeout(Some(time::Duration::new(20, 0))).expect("set_read_timeout call failed");
     socket.set_write_timeout(Some(time::Duration::new(20, 0))).expect("set_write_timeout call failed");
     if let Err(err) = socket.connect(link){

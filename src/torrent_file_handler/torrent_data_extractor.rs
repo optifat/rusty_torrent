@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use super::bencode_content::Content;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TorrentData{
     pub pieces: Vec<Vec<u8>>,
     pub piece_length: usize,
@@ -10,7 +10,7 @@ pub struct TorrentData{
     pub announce_list: Option<Vec<String>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct File{
     pub path_to_file: Vec<String>,
     pub size: usize
