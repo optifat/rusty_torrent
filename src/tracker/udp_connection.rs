@@ -15,7 +15,7 @@ pub fn make_udp_request(url: Url, torrent_data: &TorrentData, peer_id: &Vec<u8>,
     let mut interval = 0;
 
     let binding_port = pick_unused_port().unwrap();
-    let binding_ip = format!("0.0.0.0:{}", port);
+    let binding_ip = format!("0.0.0.0:{}", binding_port);
 
     let link = format!("{}:{}", url.host().unwrap(), url.port().unwrap());
     let socket = UdpSocket::bind(binding_ip).expect("couldn't bind to address");
