@@ -209,10 +209,7 @@ mod tests {
     fn parsing_positive_int() {
         let mut index = 0;
         assert_eq!(
-            super::parse_int(
-                &"42e".to_string().as_bytes().to_vec(),
-                &mut index
-            ).unwrap(),
+            super::parse_int(&"42e".to_string().as_bytes().to_vec(), &mut index).unwrap(),
             42
         );
         assert_eq!(index, 3);
@@ -222,10 +219,7 @@ mod tests {
     fn parsing_zero_int() {
         let mut index = 0;
         assert_eq!(
-            super::parse_int(
-                &"0e".to_string().as_bytes().to_vec(),
-                &mut index
-            ).unwrap(),
+            super::parse_int(&"0e".to_string().as_bytes().to_vec(), &mut index).unwrap(),
             0
         );
         assert_eq!(index, 2);
@@ -235,10 +229,7 @@ mod tests {
     fn parsing_negative_int() {
         let mut index = 0;
         assert_eq!(
-            super::parse_int(
-                &"-75637e".to_string().as_bytes().to_vec(),
-                &mut index
-            ).unwrap(),
+            super::parse_int(&"-75637e".to_string().as_bytes().to_vec(), &mut index).unwrap(),
             -75637
         );
         assert_eq!(index, 7);
@@ -248,10 +239,7 @@ mod tests {
     fn parsing_string_1() {
         let mut index = 0;
         assert_eq!(
-            super::parse_string(
-                &"4:spam".to_string().as_bytes().to_vec(),
-                &mut index
-            ).unwrap(),
+            super::parse_string(&"4:spam".to_string().as_bytes().to_vec(), &mut index).unwrap(),
             "spam"
         );
         assert_eq!(index, 6);
@@ -264,7 +252,8 @@ mod tests {
             super::parse_string(
                 &"13:parrot sketch".to_string().as_bytes().to_vec(),
                 &mut index
-            ).unwrap(),
+            )
+            .unwrap(),
             "parrot sketch"
         );
         assert_eq!(index, 16);
@@ -277,7 +266,8 @@ mod tests {
             super::parse_list(
                 &"13:parrot sketchi42ee".to_string().as_bytes().to_vec(),
                 &mut index,
-            ).unwrap()
+            )
+            .unwrap()
         };
         assert_eq!(result[0], super::Content::Str("parrot sketch".to_string()));
         assert_eq!(result[1], super::Content::Int(42));
@@ -291,9 +281,13 @@ mod tests {
             super::parse_dict(
                 &"3:bar4:spam3:fooi42ee".to_string().as_bytes().to_vec(),
                 &mut index,
-            ).unwrap()
+            )
+            .unwrap()
         };
-        assert_eq!(*result.get("bar").unwrap(), super::Content::Str("spam".to_string()));
+        assert_eq!(
+            *result.get("bar").unwrap(),
+            super::Content::Str("spam".to_string())
+        );
         assert_eq!(*result.get("foo").unwrap(), super::Content::Int(42));
         assert_eq!(index, 21);
     }
