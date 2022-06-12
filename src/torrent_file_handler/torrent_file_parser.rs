@@ -209,10 +209,10 @@ mod tests {
     fn parsing_positive_int() {
         let mut index = 0;
         assert_eq!(
-            crate::torrent_file_parser::parse_int(
+            super::parse_int(
                 &"42e".to_string().as_bytes().to_vec(),
                 &mut index
-            ),
+            ).unwrap(),
             42
         );
         assert_eq!(index, 3);
@@ -222,10 +222,10 @@ mod tests {
     fn parsing_zero_int() {
         let mut index = 0;
         assert_eq!(
-            crate::torrent_file_parser::parse_int(
+            super::parse_int(
                 &"0e".to_string().as_bytes().to_vec(),
                 &mut index
-            ),
+            ).unwrap(),
             0
         );
         assert_eq!(index, 2);
@@ -235,10 +235,10 @@ mod tests {
     fn parsing_negative_int() {
         let mut index = 0;
         assert_eq!(
-            crate::torrent_file_parser::parse_int(
+            super::parse_int(
                 &"-75637e".to_string().as_bytes().to_vec(),
                 &mut index
-            ),
+            ).unwrap(),
             -75637
         );
         assert_eq!(index, 7);
@@ -248,10 +248,10 @@ mod tests {
     fn parsing_string_1() {
         let mut index = 0;
         assert_eq!(
-            crate::torrent_file_parser::parse_string(
+            super::parse_string(
                 &"4:spam".to_string().as_bytes().to_vec(),
                 &mut index
-            ),
+            ).unwrap(),
             "spam"
         );
         assert_eq!(index, 6);
@@ -261,10 +261,10 @@ mod tests {
     fn parsing_string_2() {
         let mut index = 0;
         assert_eq!(
-            crate::torrent_file_parser::parse_string(
+            super::parse_string(
                 &"13:parrot sketch".to_string().as_bytes().to_vec(),
                 &mut index
-            ),
+            ).unwrap(),
             "parrot sketch"
         );
         assert_eq!(index, 16);
@@ -274,10 +274,10 @@ mod tests {
     fn parsing_list() {
         let mut index = 0;
         let result: Vec<super::Content> = {
-            crate::torrent_file_parser::parse_list(
+            super::parse_list(
                 &"13:parrot sketchi42ee".to_string().as_bytes().to_vec(),
                 &mut index,
-            )
+            ).unwrap()
         };
         assert_eq!(result[0], super::Content::Str("parrot sketch".to_string()));
         assert_eq!(result[1], super::Content::Int(42));
@@ -288,13 +288,13 @@ mod tests {
     fn parsing_dict() {
         let mut index = 0;
         let result: HashMap<String, super::Content> = {
-            crate::torrent_file_parser::parse_dict(
+            super::parse_dict(
                 &"3:bar4:spam3:fooi42ee".to_string().as_bytes().to_vec(),
                 &mut index,
-            )
+            ).unwrap()
         };
-        assert_eq!(*result.get("bar")?, super::Content::Str("spam".to_string()));
-        assert_eq!(*result.get("foo")?, super::Content::Int(42));
+        assert_eq!(*result.get("bar").unwrap(), super::Content::Str("spam".to_string()));
+        assert_eq!(*result.get("foo").unwrap(), super::Content::Int(42));
         assert_eq!(index, 21);
     }
 
@@ -302,13 +302,13 @@ mod tests {
     fn testing_info_hash() {
         let mut index = 0;
         let example = "4:info4:spam3:fooi42ee".to_string().as_bytes().to_vec();
-        let _ = crate::torrent_file_parser::parse_dict(&example, &mut index);
+        let _ = super::parse_dict(&example, &mut index).unwrap();
         unsafe {
-            assert_eq!(crate::torrent_file_parser::INFO_START, 6);
-            assert_eq!(crate::torrent_file_parser::INFO_END, 12);
+            assert_eq!(super::INFO_START, 6);
+            assert_eq!(super::INFO_END, 12);
         }
         assert_eq!(
-            crate::torrent_file_parser::create_info_hash(&example),
+            super::create_info_hash(&example),
             vec![
                 151, 39, 109, 243, 254, 149, 209, 1, 232, 44, 41, 51, 88, 33, 38, 89, 2, 164, 15,
                 144
@@ -323,13 +323,13 @@ mod tests {
             .to_string()
             .as_bytes()
             .to_vec();
-        let _ = crate::torrent_file_parser::parse_dict(&example, &mut index);
+        let _ = super::parse_dict(&example, &mut index).unwrap();
         unsafe {
-            assert_eq!(crate::torrent_file_parser::INFO_START, 6);
-            assert_eq!(crate::torrent_file_parser::INFO_END, 38);
+            assert_eq!(super::INFO_START, 6);
+            assert_eq!(super::INFO_END, 38);
         }
         assert_eq!(
-            crate::torrent_file_parser::create_info_hash(&example),
+            super::create_info_hash(&example),
             vec![
                 4, 126, 211, 231, 220, 45, 82, 116, 37, 135, 96, 198, 181, 86, 85, 175, 170, 126,
                 67, 178
