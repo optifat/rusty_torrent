@@ -1,34 +1,38 @@
-use std::io::prelude::*;
-use std::net::{SocketAddr, TcpStream};
-use std::time::Duration;
+use std::net::SocketAddr;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
-pub fn perform_handshake(
+pub async fn perform_handshake(
     peer_ip: String,
     info_hash: Vec<u8>,
     peer_id: Vec<u8>,
     pstr_option: Option<String>,
 ) -> anyhow::Result<TcpStream> {
-    //println!("Performing handshake with {:?}", peer_ip);
-    let mut stream =
-        TcpStream::connect_timeout(&peer_ip.parse::<SocketAddr>()?, Duration::new(3, 0))?;
-    stream.write(&create_handshake_msg(&info_hash, &peer_id, pstr_option))?; // my panic code: 104, kind: ConnectionReset, message: "Connection reset by peer"
+    // println!("Performing handshake with {:?}", peer_ip);
+    let mut stream = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        TcpStream::connect(&peer_ip.parse::<SocketAddr>()?),
+    )
+    .await??;
+    stream
+        .write_all(&mut create_handshake_msg(&info_hash, &peer_id, pstr_option))
+        .await?; // my panic code: 104, kind: ConnectionReset, message: "Connection reset by peer"
     let mut buf: [u8; 1] = [0; 1];
     let mut pstr_len: [u8; 1] = [0];
     let mut pstr_and_reserved = Vec::new();
     let mut hash: [u8; 20] = [0; 20];
     let mut id: [u8; 20] = [0; 20];
-    stream.read(&mut pstr_len)?;
-
+    stream.read_exact(&mut pstr_len).await?;
     for _ in 0..pstr_len[0] + 8 {
-        stream.read(&mut buf)?;
+        stream.read_exact(&mut buf).await?;
         pstr_and_reserved.push(buf[0]);
     }
-    stream.read(&mut hash)?;
-    stream.read(&mut id)?;
+    stream.read_exact(&mut hash).await?;
+    stream.read_exact(&mut id).await?;
     for i in 0..20 {
         anyhow::ensure!(hash[i] == info_hash[i], "Hash infos do not match");
     }
-    //println!("Connected to {:?}", peer_ip);
+    // println!("Connected to {:?}", peer_ip);
     Ok(stream)
 }
 

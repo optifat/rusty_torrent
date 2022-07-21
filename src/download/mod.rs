@@ -1,14 +1,12 @@
 mod download_status;
 
 use std::collections::VecDeque;
-use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time;
 
 use rand::prelude::*;
 use rand::Rng;
 use sha1::{Digest, Sha1};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::filewriter;
 use crate::p2p::bitfields;
@@ -20,7 +18,8 @@ use crate::tracker;
 
 const BLOCK_SIZE: usize = 16384;
 
-pub fn download(filename: String) -> anyhow::Result<()> {
+#[tokio::main]
+pub async fn download(filename: String) -> anyhow::Result<()> {
     let (torrent_data, info_hash) = torrent_file_parser::parse_torrent_file(filename)?;
     let torrent_data = torrent_data_extractor::extract_data(torrent_data)?;
 
@@ -37,7 +36,7 @@ pub fn download(filename: String) -> anyhow::Result<()> {
     };
 
     let saved_pieces_dir_name = ".test".to_string();
-    filewriter::create_directory(&saved_pieces_dir_name)?;
+    filewriter::create_directory(&saved_pieces_dir_name).await?;
 
     let mut pieces_queue = VecDeque::new();
     for i in 0..pieces_len {
@@ -53,7 +52,8 @@ pub fn download(filename: String) -> anyhow::Result<()> {
 
     loop {
         let mut workers = Vec::new();
-        let (peers, _) = tracker::request_peers(&*torrent_data_ptr, &peer_id, 7878, &info_hash);
+        let (peers, _) =
+            tracker::request_peers(&*torrent_data_ptr, &peer_id, 7878, &info_hash).await?;
 
         let current_progress = { download_status_ptr.lock().unwrap().pieces_downloaded };
 
@@ -73,7 +73,7 @@ pub fn download(filename: String) -> anyhow::Result<()> {
                     &*torrent_data_ptr,
                     saved_pieces_dir_name.to_string().clone(),
                 )?;
-                //filewriter::remove_directory(&saved_pieces_dir_name.to_string());
+                // filewriter::remove_directory(&saved_pieces_dir_name.to_string());
                 println!("Success!");
                 for byte in info_hash {
                     print!("{} ", byte);
@@ -90,9 +90,10 @@ pub fn download(filename: String) -> anyhow::Result<()> {
                     torrent_data_ptr_clone,
                     download_status_ptr_clone,
                     saved_pieces_dir_name_clone,
-                );
+                )
+                .await;
             } else {
-                workers.push(thread::spawn(move || {
+                workers.push({
                     create_download_worker(
                         peer_clone,
                         info_hash_clone,
@@ -104,15 +105,11 @@ pub fn download(filename: String) -> anyhow::Result<()> {
                         download_status_ptr_clone,
                         saved_pieces_dir_name_clone,
                     )
-                }));
+                });
             }
         }
 
-        if workers.len() > 0 {
-            for worker in workers {
-                worker.join().unwrap();
-            }
-        }
+        futures::future::join_all(workers).await;
 
         {
             let download_status = download_status_ptr.lock().unwrap();
@@ -125,7 +122,7 @@ pub fn download(filename: String) -> anyhow::Result<()> {
     }
 }
 
-fn create_download_worker(
+async fn create_download_worker(
     peer: String,
     info_hash: Vec<u8>,
     peer_id: Vec<u8>,
@@ -137,21 +134,22 @@ fn create_download_worker(
     saved_pieces_dir_name: String,
 ) {
     let mut connection;
-    if let Ok(peer_connection) = handshake::perform_handshake(peer, info_hash, peer_id, None) {
+    if let Ok(peer_connection) = handshake::perform_handshake(peer, info_hash, peer_id, None).await
+    {
         connection = peer_connection;
     } else {
         return;
     }
 
-    connection
+    /*connection
         .set_read_timeout(Some(time::Duration::new(20, 0)))
         .expect("set_read_timeout call failed");
     connection
         .set_write_timeout(Some(time::Duration::new(10, 0)))
-        .expect("set_write_timeout call failed");
+        .expect("set_write_timeout call failed");*/
 
     let bitfield;
-    match bitfields::parse_bitfield(&mut connection, expected_length) {
+    match bitfields::parse_bitfield(&mut connection, expected_length).await {
         Ok(returned_bitfield) => {
             bitfield = returned_bitfield;
         }
@@ -161,11 +159,14 @@ fn create_download_worker(
         }
     }
 
-    if let Err(_) = connection.write(&messages::create_unchoke_msg()) {
+    if let Err(_) = connection.write_all(&messages::create_unchoke_msg()).await {
         return;
     }
 
-    if let Err(_) = connection.write(&messages::create_interested_msg()) {
+    if let Err(_) = connection
+        .write_all(&messages::create_interested_msg())
+        .await
+    {
         return;
     }
 
@@ -201,11 +202,14 @@ fn create_download_worker(
             let mut piece_msg: [u8; BLOCK_SIZE + 18] = [0; BLOCK_SIZE + 18];
 
             for i in 0..number_of_blocks {
-                if let Err(_) = connection.write(&messages::create_request_msg(
-                    index as u32,
-                    i * (BLOCK_SIZE as u32),
-                    BLOCK_SIZE as u32,
-                )) {
+                if let Err(_) = connection
+                    .write_all(&messages::create_request_msg(
+                        index as u32,
+                        i * (BLOCK_SIZE as u32),
+                        BLOCK_SIZE as u32,
+                    ))
+                    .await
+                {
                     let mut queue = queue_ptr.lock().unwrap();
                     queue.push_back(index);
                     return;
@@ -228,14 +232,15 @@ fn create_download_worker(
 
                     let bytes_got_this_iter;
 
-                    if let Ok(number_of_bytes) = connection.read(&mut piece_msg) {
-                        bytes_got_this_iter = number_of_bytes;
-                    } else {
-                        let mut queue = queue_ptr.lock().unwrap();
-                        queue.push_back(index);
-                        return;
+                    match connection.read(&mut piece_msg).await {
+                        Ok(number_of_bytes) => bytes_got_this_iter = number_of_bytes,
+                        Err(e) => {
+                            let mut queue = queue_ptr.lock().unwrap();
+                            queue.push_back(index);
+                            println!("{:?}", e);
+                            return;
+                        }
                     }
-
                     bytes_got += bytes_got_this_iter;
 
                     for i in 0..bytes_got_this_iter {
@@ -329,9 +334,9 @@ fn create_download_worker(
                     }
                 }
 
-                if buffer_overlow {
-                    break;
-                }
+                // if buffer_overlow {
+                //     break;
+                // }
 
                 for byte in block.iter() {
                     piece.push(*byte);
@@ -347,6 +352,7 @@ fn create_download_worker(
                 }
             } else {
                 filewriter::save_piece(saved_pieces_dir_name.clone(), piece.clone(), index)
+                    .await
                     .unwrap();
                 let mut download_status = download_status_ptr.lock().unwrap();
                 download_status.pieces_downloaded += 1;

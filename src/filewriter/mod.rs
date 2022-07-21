@@ -1,32 +1,27 @@
-use std::fs;
-use std::io::prelude::*;
 use std::os::unix::prelude::FileExt;
+use tokio::fs;
+use tokio::io::AsyncWriteExt;
 
 use crate::torrent_file_handler::torrent_data_extractor;
 
-pub fn create_directory(path: &String) -> anyhow::Result<()> {
-    fs::create_dir_all(path)?;
+pub async fn create_directory(path: &String) -> anyhow::Result<()> {
+    fs::create_dir_all(path).await?;
     Ok(())
 }
 
 #[allow(dead_code)]
-pub fn remove_directory(path: &String) -> anyhow::Result<()> {
-    fs::remove_dir(path)?;
+pub async fn remove_directory(path: &String) -> anyhow::Result<()> {
+    fs::remove_dir(path).await?;
     Ok(())
 }
 
-pub fn save_piece(path: String, piece: Vec<u8>, index: usize) -> anyhow::Result<()> {
+pub async fn save_piece(path: String, piece: Vec<u8>, index: usize) -> anyhow::Result<()> {
     let mut filename = path;
     filename.push_str("/.");
     filename.push_str(&index.to_string());
 
-    let mut file = fs::File::create(filename)?;
-    let bytes_written = file.write(&piece)?;
-
-    anyhow::ensure!(
-        bytes_written == piece.len(),
-        "Message announced length is too small"
-    );
+    let mut file = fs::File::create(filename).await?;
+    file.write_all(&piece).await?;
 
     Ok(())
 }
@@ -56,7 +51,7 @@ pub fn compose_files(
                 dirs.push('/');
             }
 
-            create_directory(&dirs)?;
+            std::fs::create_dir_all(&dirs)?;
             dirs.push_str(&filename);
             filename = dirs;
         }
@@ -65,7 +60,7 @@ pub fn compose_files(
 
         let mut bytes_written_into_file = 0;
 
-        let f = fs::File::create(filename)?;
+        let f = std::fs::File::create(filename)?;
 
         if bytes_from_prev_piece.len() != 0 {
             if file.size > bytes_from_prev_piece.len() {
@@ -93,7 +88,7 @@ pub fn compose_files(
             let mut current_piece_filename = saved_pieces_dir_name.clone();
             current_piece_filename.push_str("/.");
             current_piece_filename.push_str(&current_piece.to_string());
-            let current_piece_bytes = fs::read(current_piece_filename.clone())?;
+            let current_piece_bytes = std::fs::read(current_piece_filename.clone())?;
             let total_bytes = current_piece_bytes.len();
             f.write_at(&current_piece_bytes, bytes_written_into_file as u64)?;
             bytes_written_into_file += total_bytes;
@@ -104,7 +99,7 @@ pub fn compose_files(
         let mut current_piece_filename = saved_pieces_dir_name.clone();
         current_piece_filename.push_str("/.");
         current_piece_filename.push_str(&current_piece.to_string());
-        let current_piece_bytes = fs::read(current_piece_filename.clone())?;
+        let current_piece_bytes = std::fs::read(current_piece_filename.clone())?;
         f.write_at(
             &current_piece_bytes[0..file.size - bytes_written_into_file],
             bytes_written_into_file as u64,

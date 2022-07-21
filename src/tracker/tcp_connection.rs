@@ -3,7 +3,7 @@ use crate::torrent_file_handler::torrent_file_parser::parse_byte_data;
 use curl::easy::Easy;
 
 pub async fn make_tcp_request(
-    tracker: String,
+    tracker: &String,
     torrent_data: &TorrentData,
     peer_id: &Vec<u8>,
     port: u16,
@@ -79,7 +79,7 @@ pub async fn make_tcp_request(
 }
 
 fn create_tcp_tracker_url(
-    tracker: String,
+    tracker: &String,
     torrent_data: &TorrentData,
     peer_id: &Vec<u8>,
     port: u16,
@@ -87,7 +87,7 @@ fn create_tcp_tracker_url(
 ) -> String {
     let mut url = String::new();
 
-    url.push_str(&tracker);
+    url.push_str(tracker);
     url.push_str("?compact=1&downloaded=0&info_hash=");
 
     url.push_str(&bytes_to_url(info_hash));

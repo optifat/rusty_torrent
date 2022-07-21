@@ -11,10 +11,9 @@ This is my implementation of torrent client. We don't encourage piracy, use for 
 ## Further upgrades
 
 Right now there are some problems and missing features (in order of need to fix or implement): <br/>
-1. Proper testing (it can stuck in some places + didn't test file saving that good)
-2. Code refactoring (it's just a mess RN).
-3. Proper error handling.
-5. Performance issues (threads are obviously not the best approach here, something like epoll or async would be better). <br/>
+[ ] Proper testing (it can stuck in some places + didn't test file saving that good) <br/>
+[ ] Code refactoring (it's just a mess RN) <br/>
+[x] Proper error handling <br/>
+[x] Performance issues (replaced multithreading with async) <br/>
+[ ] Algorithms improvements <br/>
 
-<br/> Also it can stuck when a couple of pieces are left. Latest test have shown
-this is probably just choked peers or something like that, but I'm not 100% sure about it.
